@@ -1,6 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { useWorkout, useCreateWorkoutRow } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs } from "@/hooks/use-logs";
+import { useAuth } from "@/hooks/use-auth";
 import { useRoute, Link } from "wouter";
 import { ArrowLeft, Plus, CheckCircle2, History, Anchor } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
@@ -83,6 +84,8 @@ function ExerciseRow({ row }: { row: any }) {
   const [reps, setReps] = useState("");
   const [rpe, setRpe] = useState("");
 
+  const { user } = useAuth();
+
   const handleLog = () => {
     if (!weight || !reps) {
       toast({ title: "Incomplete", description: "Please enter weight and reps", variant: "destructive" });
@@ -91,9 +94,7 @@ function ExerciseRow({ row }: { row: any }) {
 
     logSet({
       workoutRowId: row.id,
-      userId: "temp", // Backend handles user from auth context, this is ignored or handled there if schema requires it, but schema expects string. Replit Auth provides user ID. 
-                     // IMPORTANT: The backend API must derive userId from the session. 
-                     // However, schema expects userId in body. We'll pass a placeholder and ensure backend overrides it with session.user.id
+      userId: user?.id || "temp", 
       weight: weight,
       reps: parseInt(reps),
       rpe: rpe ? rpe : null,
