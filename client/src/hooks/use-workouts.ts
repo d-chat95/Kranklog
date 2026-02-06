@@ -36,6 +36,49 @@ export function useCreateWorkout() {
   });
 }
 
+export function useUpdateWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertWorkout> }) => {
+      const url = buildUrl(api.workouts.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update workout");
+      return await res.json();
+    },
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, variables.id] });
+      if (variables.data.programId) {
+        queryClient.invalidateQueries({ queryKey: [api.programs.get.path, variables.data.programId] });
+      }
+      queryClient.invalidateQueries({ queryKey: [api.programs.list.path] });
+    },
+  });
+}
+
+export function useDeleteWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, programId }: { id: number; programId: number }) => {
+      const url = buildUrl(api.workouts.delete.path, { id });
+      const res = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete workout");
+      return await res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.programs.get.path, variables.programId] });
+      queryClient.invalidateQueries({ queryKey: [api.programs.list.path] });
+    },
+  });
+}
+
 export function useCreateWorkoutRow() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -48,6 +91,44 @@ export function useCreateWorkoutRow() {
       });
       if (!res.ok) throw new Error("Failed to add exercise");
       return api.workoutRows.create.responses[201].parse(await res.json());
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, variables.workoutId] });
+    },
+  });
+}
+
+export function useUpdateWorkoutRow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertWorkoutRow> }) => {
+      const url = buildUrl(api.workoutRows.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update exercise");
+      return await res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, result.workoutId] });
+    },
+  });
+}
+
+export function useDeleteWorkoutRow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, workoutId }: { id: number; workoutId: number }) => {
+      const url = buildUrl(api.workoutRows.delete.path, { id });
+      const res = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete exercise");
+      return await res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, variables.workoutId] });

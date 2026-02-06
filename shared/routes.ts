@@ -23,6 +23,8 @@ export const errorSchemas = {
   }),
 };
 
+const okResponse = z.object({ ok: z.literal(true) });
+
 export const api = {
   programs: {
     list: {
@@ -49,6 +51,24 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/programs/:id',
+      input: insertProgramSchema.partial(),
+      responses: {
+        200: z.custom<typeof programs.$inferSelect>(),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/programs/:id',
+      responses: {
+        200: okResponse,
+        404: errorSchemas.notFound,
+      },
+    },
   },
   workouts: {
     get: {
@@ -68,6 +88,24 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/workouts/:id',
+      input: insertWorkoutSchema.partial(),
+      responses: {
+        200: z.custom<typeof workouts.$inferSelect>(),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/workouts/:id',
+      responses: {
+        200: okResponse,
+        404: errorSchemas.notFound,
+      },
+    },
   },
   workoutRows: {
     create: {
@@ -77,6 +115,24 @@ export const api = {
       responses: {
         201: z.custom<typeof workoutRows.$inferSelect>(),
         400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/workout-rows/:id',
+      input: insertWorkoutRowSchema.partial(),
+      responses: {
+        200: z.custom<typeof workoutRows.$inferSelect>(),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/workout-rows/:id',
+      responses: {
+        200: okResponse,
+        404: errorSchemas.notFound,
       },
     },
   },
@@ -92,16 +148,40 @@ export const api = {
     },
     list: {
       method: 'GET' as const,
-      path: '/api/logs', // Query params: userId, rowId, movementFamily
+      path: '/api/logs',
       input: z.object({
         workoutRowId: z.string().optional(),
         movementFamily: z.string().optional(),
-        isAnchor: z.string().optional(), // "true" or "false"
+        isAnchor: z.string().optional(),
       }).optional(),
       responses: {
         200: z.array(z.custom<typeof logs.$inferSelect & { row: typeof workoutRows.$inferSelect }>()),
       },
-    }
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/logs/:id',
+      input: z.object({
+        weight: z.string().optional(),
+        reps: z.number().optional(),
+        rpe: z.string().nullable().optional(),
+        notes: z.string().nullable().optional(),
+        date: z.string().optional(),
+      }),
+      responses: {
+        200: z.custom<typeof logs.$inferSelect>(),
+        404: errorSchemas.notFound,
+        400: errorSchemas.validation,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/logs/:id',
+      responses: {
+        200: okResponse,
+        404: errorSchemas.notFound,
+      },
+    },
   },
   stats: {
     e1rm: {

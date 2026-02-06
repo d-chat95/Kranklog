@@ -5,32 +5,35 @@ import {
   type ProgramWithWorkouts, type WorkoutWithRows, type WorkoutRowWithLogs
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
-  // Programs
   getPrograms(): Promise<Program[]>;
   getProgram(id: number): Promise<ProgramWithWorkouts | undefined>;
   createProgram(program: InsertProgram): Promise<Program>;
+  updateProgram(id: number, data: Partial<InsertProgram>): Promise<Program | undefined>;
+  deleteProgram(id: number): Promise<boolean>;
 
-  // Workouts
   getWorkout(id: number): Promise<WorkoutWithRows | undefined>;
   createWorkout(workout: InsertWorkout): Promise<Workout>;
+  updateWorkout(id: number, data: Partial<InsertWorkout>): Promise<Workout | undefined>;
+  deleteWorkout(id: number): Promise<boolean>;
 
-  // Workout Rows
   createWorkoutRow(row: InsertWorkoutRow): Promise<WorkoutRow>;
   getWorkoutRow(id: number): Promise<WorkoutRow | undefined>;
-  
-  // Logs
+  updateWorkoutRow(id: number, data: Partial<InsertWorkoutRow>): Promise<WorkoutRow | undefined>;
+  deleteWorkoutRow(id: number): Promise<boolean>;
+
   createLog(log: InsertLog, date?: Date): Promise<Log>;
   getLogs(userId: string, filters?: { workoutRowId?: number, movementFamily?: string, isAnchor?: boolean }): Promise<(Log & { row: WorkoutRow })[]>;
-  
-  // Stats helpers
+  getLog(id: number): Promise<Log | undefined>;
+  updateLog(id: number, data: { weight?: string; reps?: number; rpe?: string | null; notes?: string | null; date?: Date }): Promise<Log | undefined>;
+  deleteLog(id: number): Promise<boolean>;
+
   getLastAnchorLog(userId: string, movementFamily: string, variant?: string): Promise<Log | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // Programs
   async getPrograms(): Promise<Program[]> {
     return await db.select().from(programs).orderBy(desc(programs.createdAt));
   }
@@ -51,14 +54,36 @@ export class DatabaseStorage implements IStorage {
     return newProgram;
   }
 
-  // Workouts
+  async updateProgram(id: number, data: Partial<InsertProgram>): Promise<Program | undefined> {
+    const [updated] = await db.update(programs).set(data).where(eq(programs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteProgram(id: number): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const programWorkouts = await tx.select({ id: workouts.id }).from(workouts).where(eq(workouts.programId, id));
+      if (programWorkouts.length > 0) {
+        const workoutIds = programWorkouts.map(w => w.id);
+        const rows = await tx.select({ id: workoutRows.id }).from(workoutRows).where(inArray(workoutRows.workoutId, workoutIds));
+        if (rows.length > 0) {
+          const rowIds = rows.map(r => r.id);
+          await tx.delete(logs).where(inArray(logs.workoutRowId, rowIds));
+          await tx.delete(workoutRows).where(inArray(workoutRows.id, rowIds));
+        }
+        await tx.delete(workouts).where(inArray(workouts.id, workoutIds));
+      }
+      const [deleted] = await tx.delete(programs).where(eq(programs.id, id)).returning();
+      return !!deleted;
+    });
+  }
+
   async getWorkout(id: number): Promise<WorkoutWithRows | undefined> {
     const workout = await db.select().from(workouts).where(eq(workouts.id, id));
     if (workout.length === 0) return undefined;
 
     const rows = await db.select().from(workoutRows)
       .where(eq(workoutRows.workoutId, id))
-      .orderBy(workoutRows.orderLabel); // Should ideally sort alphanumerically 1a, 1b...
+      .orderBy(workoutRows.orderLabel);
 
     return { ...workout[0], rows };
   }
@@ -68,7 +93,24 @@ export class DatabaseStorage implements IStorage {
     return newWorkout;
   }
 
-  // Workout Rows
+  async updateWorkout(id: number, data: Partial<InsertWorkout>): Promise<Workout | undefined> {
+    const [updated] = await db.update(workouts).set(data).where(eq(workouts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWorkout(id: number): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const rows = await tx.select({ id: workoutRows.id }).from(workoutRows).where(eq(workoutRows.workoutId, id));
+      if (rows.length > 0) {
+        const rowIds = rows.map(r => r.id);
+        await tx.delete(logs).where(inArray(logs.workoutRowId, rowIds));
+        await tx.delete(workoutRows).where(inArray(workoutRows.id, rowIds));
+      }
+      const [deleted] = await tx.delete(workouts).where(eq(workouts.id, id)).returning();
+      return !!deleted;
+    });
+  }
+
   async createWorkoutRow(row: InsertWorkoutRow): Promise<WorkoutRow> {
     const [newRow] = await db.insert(workoutRows).values(row).returning();
     return newRow;
@@ -79,7 +121,19 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  // Logs
+  async updateWorkoutRow(id: number, data: Partial<InsertWorkoutRow>): Promise<WorkoutRow | undefined> {
+    const [updated] = await db.update(workoutRows).set(data).where(eq(workoutRows.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWorkoutRow(id: number): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      await tx.delete(logs).where(eq(logs.workoutRowId, id));
+      const [deleted] = await tx.delete(workoutRows).where(eq(workoutRows.id, id)).returning();
+      return !!deleted;
+    });
+  }
+
   async createLog(log: InsertLog, date?: Date): Promise<Log> {
     const values = date ? { ...log, date } : log;
     const [newLog] = await db.insert(logs).values(values).returning();
@@ -113,11 +167,22 @@ export class DatabaseStorage implements IStorage {
     return results.map(r => ({ ...r.log, row: r.row }));
   }
 
+  async getLog(id: number): Promise<Log | undefined> {
+    const [log] = await db.select().from(logs).where(eq(logs.id, id));
+    return log;
+  }
+
+  async updateLog(id: number, data: { weight?: string; reps?: number; rpe?: string | null; notes?: string | null; date?: Date }): Promise<Log | undefined> {
+    const [updated] = await db.update(logs).set(data).where(eq(logs.id, id)).returning();
+    return updated;
+  }
+
+  async deleteLog(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(logs).where(eq(logs.id, id)).returning();
+    return !!deleted;
+  }
+
   async getLastAnchorLog(userId: string, movementFamily: string, variant?: string): Promise<Log | undefined> {
-    // Find the most recent log for an anchor set of this movement family
-    // Optionally filter by variant text if provided (fuzzy match or exact? Let's do exact or skip for MVP simplicty)
-    // For "Bench" we just want the last heavy Bench anchor.
-    
     let query = db.select({
       log: logs
     })

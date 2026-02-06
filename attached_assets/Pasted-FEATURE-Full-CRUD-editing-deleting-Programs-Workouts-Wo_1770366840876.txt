@@ -1,0 +1,118 @@
+FEATURE: Full CRUD editing + deleting (Programs / Workouts / Workout Rows / Logs)
+
+Context:
+- Backend: Express + Drizzle + Supabase Postgres
+- Frontend: React Query with stable keys (e.g. ["/api/programs/:id", id], ["/api/workouts/:id", id], logs key includes serializedParams)
+- Logs reference workout_rows via FK; workout_rows reference workouts; workouts reference programs.
+- Auth: isAuthenticated middleware exists; logs are scoped by user_id already.
+
+Goal:
+Add Edit + Delete capabilities across:
+1) Programs
+2) Workouts
+3) Workout Rows (Exercises)
+4) Logs (Sets)
+
+────────────────────────
+A) Backend Routes (PATCH + DELETE)
+────────────────────────
+
+Add/confirm endpoints:
+
+Programs
+- PATCH /api/programs/:id  -> update { name, description }
+- DELETE /api/programs/:id -> delete program and all nested data safely
+
+Workouts
+- PATCH /api/workouts/:id  -> update { name, description, orderIndex, programId? (optional) }
+- DELETE /api/workouts/:id -> delete workout and all nested rows/logs safely
+
+Workout Rows
+- PATCH /api/workout-rows/:id -> update row fields:
+  { orderLabel, liftName, variant, sets, reps, intensityValue, intensityType, rest, isAnchor, movementFamily }
+- DELETE /api/workout-rows/:id -> delete row and its logs safely
+
+Logs
+- PATCH /api/logs/:id -> update { weight, reps, rpe, notes, date } (date = performedAt)
+- DELETE /api/logs/:id
+
+Authorization rules:
+- Logs: must enforce ownership strictly:
+  logs.user_id must equal req.user.claims.sub
+- Programs/Workouts/Rows:
+  For now, enforce isAuthenticated only (single shared gym dataset).
+  If there is already an ownership field in schema, enforce it; if not, do NOT invent ownership yet.
+
+Delete behavior (IMPORTANT):
+Because logs reference workout_rows, deleting a parent must not violate FK constraints.
+Implement safe delete in storage using a transaction:
+- Deleting a program should delete:
+  logs -> workout_rows -> workouts -> program
+- Deleting a workout should delete:
+  logs -> workout_rows -> workout
+- Deleting a workout_row should delete:
+  logs -> workout_row
+Prefer explicit deletes in correct order inside a DB transaction unless schema already has ON DELETE CASCADE.
+
+Return values:
+- PATCH returns updated entity JSON
+- DELETE returns { ok: true }
+
+Validation:
+- Use zod for PATCH payloads (partial updates allowed).
+- Return 404 if entity not found.
+
+────────────────────────
+B) Frontend UI (Edit/Delete actions)
+────────────────────────
+
+Where:
+- Programs list + Program detail: add actions for edit/delete
+- Workout detail/session page: edit/delete workout
+- Each exercise row: edit/delete row
+- Each logged set: edit/delete log
+
+UX:
+- Use a dialog/modal for edits (shadcn style)
+- Use a confirm dialog for deletes (especially program/workout)
+
+After successful PATCH/DELETE:
+Invalidate exact React Query keys:
+
+Programs
+- PATCH/DELETE program:
+  invalidate ["/api/programs"]
+  invalidate ["/api/programs/:id", programId] (where applicable)
+
+Workouts
+- PATCH/DELETE workout:
+  invalidate ["/api/workouts/:id", workoutId]
+  invalidate ["/api/programs/:id", programId] (because program detail includes workouts)
+  invalidate ["/api/programs"]
+
+Workout Rows
+- PATCH/DELETE row:
+  invalidate ["/api/workouts/:id", workoutId]
+  invalidate ["/api/programs/:id", programId] if that screen shows rows indirectly
+
+Logs
+- PATCH/DELETE log:
+  invalidate the logs query for that workoutRowId (same key used by Session Logs)
+  invalidate ["/api/stats/e1rm"]
+  invalidate ["/api/stats/suggestions"]
+
+Acceptance tests:
+1) Edit a program name -> updates immediately without refresh
+2) Delete a workout row -> it disappears immediately and does not break due to FK constraints
+3) Delete an anchor log -> Progress chart updates immediately
+4) Edit log performedAt date -> Progress reflects backfilled date correctly (daily grouping still applies)
+
+────────────────────────
+CHANGE REPORTING (MANDATORY)
+────────────────────────
+
+After implementing, respond with:
+A) Files changed
+B) What changed per file
+C) The exact React Query invalidation keys used for each entity (Programs / Workouts / Rows / Logs)
+D) How deletes are handled (cascade vs explicit transaction order)

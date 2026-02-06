@@ -1,27 +1,30 @@
 import { Layout } from "@/components/Layout";
-import { useWorkout, useCreateWorkoutRow } from "@/hooks/use-workouts";
-import { useCreateLog, useLogs } from "@/hooks/use-logs";
+import { useWorkout, useCreateWorkoutRow, useUpdateWorkout, useDeleteWorkout, useUpdateWorkoutRow, useDeleteWorkoutRow } from "@/hooks/use-workouts";
+import { useCreateLog, useLogs, useUpdateLog, useDeleteLog } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { useRoute, Link } from "wouter";
-import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays } from "lucide-react";
+import { useRoute, Link, useLocation } from "wouter";
+import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { movementFamilyEnum, intensityTypeEnum } from "@shared/schema";
+import type { WorkoutRow, Log } from "@shared/schema";
 import { format } from "date-fns";
 
-// --- Schema for adding exercise ---
 const rowSchema = z.object({
   orderLabel: z.string().min(1, "Order is required (e.g. 1a)"),
   liftName: z.string().min(1, "Lift name is required"),
@@ -40,6 +43,9 @@ export default function WorkoutSession() {
   const workoutId = parseInt(params?.id || "0");
   const { data: workout, isLoading } = useWorkout(workoutId);
   const [sessionDate, setSessionDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [editingWorkout, setEditingWorkout] = useState(false);
+  const [deletingWorkout, setDeletingWorkout] = useState(false);
+  const [, navigate] = useLocation();
   
   if (isLoading) return <Layout><LoadingSpinner /></Layout>;
   if (!workout) return <Layout><div className="p-8 text-center">Workout not found</div></Layout>;
@@ -55,10 +61,10 @@ export default function WorkoutSession() {
           </Link>
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase">{workout.name}</h1>
+              <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase" data-testid="text-workout-title">{workout.name}</h1>
               <p className="text-muted-foreground">{workout.description}</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-muted-foreground" />
                 <Label className="text-xs uppercase text-muted-foreground sr-only">Session Date</Label>
@@ -74,6 +80,21 @@ export default function WorkoutSession() {
                 <span className="text-xs text-yellow-500 font-semibold uppercase tracking-wider">Backfill</span>
               )}
               <AddExerciseDialog workoutId={workoutId} />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" data-testid="button-workout-actions">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditingWorkout(true)} data-testid="button-edit-workout">
+                    <Pencil className="w-4 h-4 mr-2" /> Edit Workout
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDeletingWorkout(true)} className="text-destructive" data-testid="button-delete-workout">
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete Workout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -88,28 +109,42 @@ export default function WorkoutSession() {
         )}
 
         {workout.rows?.sort((a,b) => a.orderLabel.localeCompare(b.orderLabel)).map((row) => (
-          <ExerciseRow key={row.id} row={row} sessionDate={sessionDate} />
+          <ExerciseRowCard key={row.id} row={row} sessionDate={sessionDate} workoutId={workoutId} />
         ))}
       </div>
+
+      {editingWorkout && (
+        <EditWorkoutDialog
+          workout={workout}
+          open={editingWorkout}
+          onOpenChange={setEditingWorkout}
+        />
+      )}
+
+      <DeleteWorkoutConfirm
+        open={deletingWorkout}
+        onOpenChange={setDeletingWorkout}
+        workoutId={workoutId}
+        programId={workout.programId}
+        onDeleted={() => navigate(`/programs/${workout.programId}`)}
+      />
     </Layout>
   );
 }
 
-// --- Component: Exercise Row (The main logging unit) ---
-function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
+function ExerciseRowCard({ row, sessionDate, workoutId }: { row: WorkoutRow; sessionDate: string; workoutId: number }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  // Local state for the inputs
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
   const [rpe, setRpe] = useState("");
+  const [editingRow, setEditingRow] = useState(false);
+  const [deletingRow, setDeletingRow] = useState(false);
+  const [editingLog, setEditingLog] = useState<(Log & { row: WorkoutRow }) | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
 
   const { mutate: logSet, isPending } = useCreateLog();
-  
-  // Fetch logs for this row to show history
   const { data: logs } = useLogs({ workoutRowId: row.id.toString() });
 
   const handleLog = () => {
@@ -129,7 +164,6 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
     }, {
       onSuccess: () => {
         toast({ title: "Set Logged", description: `${weight} lbs x ${reps}` });
-        // No need for manual invalidation here as useCreateLog handles it
       },
       onError: (err) => {
         toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -138,10 +172,9 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
   };
 
   return (
-    <div className="gym-card overflow-hidden">
-      {/* Header / Prescription */}
+    <div className="gym-card overflow-visible">
       <div 
-        className="bg-card p-4 border-b border-border flex items-start justify-between cursor-pointer hover:bg-secondary/20 transition-colors"
+        className="bg-card p-4 border-b border-border flex items-start justify-between cursor-pointer hover-elevate transition-colors rounded-t-md"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex gap-4">
@@ -149,8 +182,8 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
             <span className="text-2xl font-display font-bold text-primary">{row.orderLabel}</span>
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-foreground">{row.liftName}</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-xl font-bold text-foreground" data-testid={`text-row-name-${row.id}`}>{row.liftName}</h3>
               {row.isAnchor && (
                 <span className="bg-red-500/20 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 border border-red-500/20">
                   <Anchor className="w-3 h-3" /> Anchor
@@ -158,7 +191,7 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
               )}
             </div>
             {row.variant && <p className="text-sm text-muted-foreground">{row.variant}</p>}
-            <div className="mt-1 flex gap-3 text-sm font-medium">
+            <div className="mt-1 flex gap-3 text-sm font-medium flex-wrap">
               <span className="bg-secondary px-2 py-0.5 rounded text-foreground">{row.sets} Sets</span>
               <span className="bg-secondary px-2 py-0.5 rounded text-foreground">{row.reps} Reps</span>
               <span className="bg-secondary px-2 py-0.5 rounded text-foreground">
@@ -168,14 +201,26 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
             </div>
           </div>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button size="icon" variant="ghost" data-testid={`button-row-menu-${row.id}`}>
+              <MoreVertical className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setEditingRow(true); }} data-testid={`button-edit-row-${row.id}`}>
+              <Pencil className="w-4 h-4 mr-2" /> Edit Exercise
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setDeletingRow(true); }} className="text-destructive" data-testid={`button-delete-row-${row.id}`}>
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Exercise
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Logging Area */}
       {isExpanded && (
         <div className="p-4 bg-background/50">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Input Section */}
             <div className="space-y-4">
               <div className="flex gap-3">
                 <div className="flex-1">
@@ -187,6 +232,7 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
                     value={weight} 
                     onChange={e => setWeight(e.target.value)}
                     className="gym-input text-center font-bold text-2xl h-14"
+                    data-testid={`input-weight-${row.id}`}
                   />
                 </div>
                 <div className="flex-1">
@@ -197,6 +243,7 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
                     value={reps} 
                     onChange={e => setReps(e.target.value)}
                     className="gym-input text-center font-bold text-2xl h-14"
+                    data-testid={`input-reps-${row.id}`}
                   />
                 </div>
                 <div className="flex-1">
@@ -207,6 +254,7 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
                     value={rpe} 
                     onChange={e => setRpe(e.target.value)}
                     className="gym-input text-center font-bold text-2xl h-14"
+                    data-testid={`input-rpe-${row.id}`}
                   />
                 </div>
               </div>
@@ -214,23 +262,31 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
               <Button 
                 onClick={handleLog} 
                 disabled={isPending}
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 text-lg font-bold uppercase tracking-widest shadow-lg shadow-primary/20"
+                className="w-full h-12 text-lg font-bold uppercase tracking-widest"
+                data-testid={`button-log-set-${row.id}`}
               >
                 {isPending ? "Logging..." : "Log Set"}
               </Button>
             </div>
 
-            {/* Recent History Section */}
             <div className="border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-6">
               <div className="flex items-center gap-2 mb-3 text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <History className="w-4 h-4" /> Session Logs
               </div>
               <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
                 {logs?.map((log, idx) => (
-                  <div key={log.id} className="flex justify-between items-center text-sm p-2 bg-card rounded border border-border/50">
+                  <div key={log.id} className="flex justify-between items-center text-sm p-2 bg-card rounded border border-border/50 group/log">
                     <span className="text-muted-foreground">Set {idx + 1}</span>
-                    <span className="font-bold text-foreground">{log.weight} lbs × {log.reps}</span>
+                    <span className="font-bold text-foreground" data-testid={`text-log-${log.id}`}>{log.weight} lbs x {log.reps}</span>
                     <span className="text-primary font-medium">{log.rpe ? `@${log.rpe}` : ""}</span>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingLog(log)} data-testid={`button-edit-log-${log.id}`}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setDeletingLogId(log.id)} data-testid={`button-delete-log-${log.id}`}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {(!logs || logs.length === 0) && (
@@ -238,15 +294,42 @@ function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
                 )}
               </div>
             </div>
-
           </div>
         </div>
       )}
+
+      {editingRow && (
+        <EditRowDialog
+          row={row}
+          open={editingRow}
+          onOpenChange={setEditingRow}
+        />
+      )}
+
+      <DeleteRowConfirm
+        open={deletingRow}
+        onOpenChange={setDeletingRow}
+        rowId={row.id}
+        workoutId={workoutId}
+      />
+
+      {editingLog && (
+        <EditLogDialog
+          log={editingLog}
+          open={!!editingLog}
+          onOpenChange={(open) => { if (!open) setEditingLog(null); }}
+        />
+      )}
+
+      <DeleteLogConfirm
+        open={!!deletingLogId}
+        onOpenChange={(open) => { if (!open) setDeletingLogId(null); }}
+        logId={deletingLogId}
+      />
     </div>
   );
 }
 
-// --- Dialog: Add Exercise ---
 function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, triggerText?: string }) {
   const [open, setOpen] = useState(false);
   const { mutate, isPending } = useCreateWorkoutRow();
@@ -285,7 +368,7 @@ function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, trig
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-secondary text-secondary-foreground hover:bg-secondary/80 font-bold uppercase border border-border">
+        <Button variant="secondary" data-testid="button-add-exercise">
           {triggerText || (
             <><Plus className="w-4 h-4 mr-2" /> Add Exercise</>
           )}
@@ -295,84 +378,336 @@ function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, trig
         <DialogHeader>
           <DialogTitle>Add Exercise</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="col-span-1">
-              <Label>Order</Label>
-              <Input placeholder="1a" {...form.register("orderLabel")} className="bg-background" />
-            </div>
-            <div className="col-span-3">
-              <Label>Lift Name</Label>
-              <Input placeholder="Bench Press" {...form.register("liftName")} className="bg-background" />
-            </div>
-          </div>
-          
-          <div>
-            <Label>Variant / Details</Label>
-            <Input placeholder="Pause 2s, -15% load" {...form.register("variant")} className="bg-background" />
-          </div>
+        <ExerciseForm form={form} onSubmit={onSubmit} isPending={isPending} submitLabel="Add Exercise" />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Sets</Label>
-              <Input placeholder="3" {...form.register("sets")} className="bg-background" />
-            </div>
-            <div>
-              <Label>Reps</Label>
-              <Input placeholder="5" {...form.register("reps")} className="bg-background" />
-            </div>
-          </div>
+function ExerciseForm({ form, onSubmit, isPending, submitLabel }: { form: any; onSubmit: (data: any) => void; isPending: boolean; submitLabel: string }) {
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="col-span-1">
+          <Label>Order</Label>
+          <Input placeholder="1a" {...form.register("orderLabel")} className="bg-background" data-testid="input-row-order" />
+        </div>
+        <div className="col-span-3">
+          <Label>Lift Name</Label>
+          <Input placeholder="Bench Press" {...form.register("liftName")} className="bg-background" data-testid="input-row-lift" />
+        </div>
+      </div>
+      
+      <div>
+        <Label>Variant / Details</Label>
+        <Input placeholder="Pause 2s, -15% load" {...form.register("variant")} className="bg-background" data-testid="input-row-variant" />
+      </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-1">
-              <Label>Intensity</Label>
-              <Input placeholder="8" {...form.register("intensityValue")} className="bg-background" />
-            </div>
-            <div className="col-span-2">
-              <Label>Type</Label>
-              <Select onValueChange={v => form.setValue("intensityType", v as any)} defaultValue="RPE">
-                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="RPE">RPE</SelectItem>
-                  <SelectItem value="%1RM">%1RM</SelectItem>
-                  <SelectItem value="MAX">MAX</SelectItem>
-                  <SelectItem value="Text">Text</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Sets</Label>
+          <Input placeholder="3" {...form.register("sets")} className="bg-background" data-testid="input-row-sets" />
+        </div>
+        <div>
+          <Label>Reps</Label>
+          <Input placeholder="5" {...form.register("reps")} className="bg-background" data-testid="input-row-reps" />
+        </div>
+      </div>
 
-          <div>
-            <Label>Family (for Stats)</Label>
-            <Select onValueChange={v => form.setValue("movementFamily", v as any)} defaultValue="Accessory">
-              <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Bench">Bench</SelectItem>
-                <SelectItem value="Squat">Squat</SelectItem>
-                <SelectItem value="Deadlift">Deadlift</SelectItem>
-                <SelectItem value="Row">Row</SelectItem>
-                <SelectItem value="Carry">Carry</SelectItem>
-                <SelectItem value="Conditioning">Conditioning</SelectItem>
-                <SelectItem value="Accessory">Accessory</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-1">
+          <Label>Intensity</Label>
+          <Input placeholder="8" {...form.register("intensityValue")} className="bg-background" data-testid="input-row-intensity" />
+        </div>
+        <div className="col-span-2">
+          <Label>Type</Label>
+          <Select onValueChange={v => form.setValue("intensityType", v as any)} defaultValue={form.getValues("intensityType") || "RPE"}>
+            <SelectTrigger className="bg-background" data-testid="select-intensity-type"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="RPE">RPE</SelectItem>
+              <SelectItem value="%1RM">%1RM</SelectItem>
+              <SelectItem value="MAX">MAX</SelectItem>
+              <SelectItem value="Text">Text</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-          <div className="flex items-center space-x-2 pt-2">
-            <input 
-              type="checkbox" 
-              id="isAnchor" 
-              {...form.register("isAnchor")} 
-              className="w-5 h-5 rounded border-input bg-background text-primary focus:ring-primary"
-            />
-            <Label htmlFor="isAnchor" className="font-bold text-red-400">Mark as Anchor Set?</Label>
-          </div>
+      <div>
+        <Label>Family (for Stats)</Label>
+        <Select onValueChange={v => form.setValue("movementFamily", v as any)} defaultValue={form.getValues("movementFamily") || "Accessory"}>
+          <SelectTrigger className="bg-background" data-testid="select-movement-family"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Bench">Bench</SelectItem>
+            <SelectItem value="Squat">Squat</SelectItem>
+            <SelectItem value="Deadlift">Deadlift</SelectItem>
+            <SelectItem value="Row">Row</SelectItem>
+            <SelectItem value="Carry">Carry</SelectItem>
+            <SelectItem value="Conditioning">Conditioning</SelectItem>
+            <SelectItem value="Accessory">Accessory</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-          <Button type="submit" disabled={isPending} className="w-full bg-primary text-primary-foreground font-bold uppercase mt-4">
-            Add Exercise
+      <div className="flex items-center space-x-2 pt-2">
+        <input 
+          type="checkbox" 
+          id="isAnchor" 
+          {...form.register("isAnchor")} 
+          className="w-5 h-5 rounded border-input bg-background text-primary focus:ring-primary"
+          data-testid="checkbox-anchor"
+        />
+        <Label htmlFor="isAnchor" className="font-bold text-red-400">Mark as Anchor Set?</Label>
+      </div>
+
+      <div>
+        <Label>Rest</Label>
+        <Input placeholder="2-3 min" {...form.register("rest")} className="bg-background" data-testid="input-row-rest" />
+      </div>
+
+      <Button type="submit" disabled={isPending} className="w-full font-bold uppercase mt-4" data-testid="button-submit-exercise">
+        {isPending ? "Saving..." : submitLabel}
+      </Button>
+    </form>
+  );
+}
+
+function EditRowDialog({ row, open, onOpenChange }: { row: WorkoutRow; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { mutate, isPending } = useUpdateWorkoutRow();
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof rowSchema>>({
+    resolver: zodResolver(rowSchema),
+    defaultValues: {
+      orderLabel: row.orderLabel,
+      liftName: row.liftName,
+      variant: row.variant || "",
+      sets: row.sets,
+      reps: row.reps,
+      intensityValue: row.intensityValue || "",
+      intensityType: (row.intensityType as any) || "RPE",
+      rest: row.rest || "",
+      isAnchor: row.isAnchor ?? false,
+      movementFamily: (row.movementFamily as any) || "Accessory",
+    },
+  });
+
+  const onSubmit = (data: z.infer<typeof rowSchema>) => {
+    mutate({ id: row.id, data: { workoutId: row.workoutId, ...data } }, {
+      onSuccess: () => { onOpenChange(false); toast({ title: "Exercise Updated" }); },
+      onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Edit Exercise</DialogTitle></DialogHeader>
+        <ExerciseForm form={form} onSubmit={onSubmit} isPending={isPending} submitLabel="Save Changes" />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteRowConfirm({ open, onOpenChange, rowId, workoutId }: { open: boolean; onOpenChange: (open: boolean) => void; rowId: number; workoutId: number }) {
+  const { mutate, isPending } = useDeleteWorkoutRow();
+  const { toast } = useToast();
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Exercise?</AlertDialogTitle>
+          <AlertDialogDescription>This will delete this exercise and all its logged sets. This cannot be undone.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            className="bg-destructive text-destructive-foreground"
+            data-testid="button-confirm-delete-row"
+            onClick={() => {
+              mutate({ id: rowId, workoutId }, {
+                onSuccess: () => { onOpenChange(false); toast({ title: "Exercise Deleted" }); },
+                onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+              });
+            }}
+          >
+            {isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function EditWorkoutDialog({ workout, open, onOpenChange }: { workout: any; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { mutate, isPending } = useUpdateWorkout();
+  const { toast } = useToast();
+  const schema = z.object({ name: z.string().min(1), description: z.string().optional() });
+
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: workout.name, description: workout.description || "" },
+  });
+
+  const onSubmit = (data: z.infer<typeof schema>) => {
+    mutate({ id: workout.id, data }, {
+      onSuccess: () => { onOpenChange(false); toast({ title: "Workout Updated" }); },
+      onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-card text-foreground border-border">
+        <DialogHeader><DialogTitle className="font-display text-2xl uppercase">Edit Workout</DialogTitle></DialogHeader>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input {...form.register("name")} className="bg-background" data-testid="input-edit-workout-name" />
+          </div>
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Textarea {...form.register("description")} className="bg-background" data-testid="input-edit-workout-desc" />
+          </div>
+          <Button type="submit" disabled={isPending} className="w-full font-bold uppercase" data-testid="button-save-workout">
+            {isPending ? "Saving..." : "Save Changes"}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function DeleteWorkoutConfirm({ open, onOpenChange, workoutId, programId, onDeleted }: { open: boolean; onOpenChange: (open: boolean) => void; workoutId: number; programId: number; onDeleted: () => void }) {
+  const { mutate, isPending } = useDeleteWorkout();
+  const { toast } = useToast();
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Workout?</AlertDialogTitle>
+          <AlertDialogDescription>This will delete this workout, all its exercises, and all logged sets.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            className="bg-destructive text-destructive-foreground"
+            data-testid="button-confirm-delete-workout"
+            onClick={() => {
+              mutate({ id: workoutId, programId }, {
+                onSuccess: () => { onOpenChange(false); toast({ title: "Workout Deleted" }); onDeleted(); },
+                onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+              });
+            }}
+          >
+            {isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function EditLogDialog({ log, open, onOpenChange }: { log: Log & { row: WorkoutRow }; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { mutate, isPending } = useUpdateLog();
+  const { toast } = useToast();
+  const schema = z.object({
+    weight: z.string().min(1, "Weight required"),
+    reps: z.string().min(1, "Reps required"),
+    rpe: z.string().optional(),
+    date: z.string().optional(),
+  });
+
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      weight: log.weight?.toString() || "",
+      reps: log.reps?.toString() || "",
+      rpe: log.rpe?.toString() || "",
+      date: log.date ? format(new Date(log.date), "yyyy-MM-dd") : "",
+    },
+  });
+
+  const onSubmit = (data: z.infer<typeof schema>) => {
+    mutate({
+      id: log.id,
+      data: {
+        weight: data.weight,
+        reps: parseInt(data.reps),
+        rpe: data.rpe || null,
+        date: data.date ? new Date(data.date + "T12:00:00").toISOString() : undefined,
+      },
+    }, {
+      onSuccess: () => { onOpenChange(false); toast({ title: "Log Updated" }); },
+      onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-card text-foreground border-border">
+        <DialogHeader><DialogTitle>Edit Logged Set</DialogTitle></DialogHeader>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Weight (lbs)</Label>
+              <Input type="number" step="0.1" {...form.register("weight")} className="bg-background" data-testid="input-edit-log-weight" />
+            </div>
+            <div>
+              <Label>Reps</Label>
+              <Input type="number" {...form.register("reps")} className="bg-background" data-testid="input-edit-log-reps" />
+            </div>
+            <div>
+              <Label>RPE</Label>
+              <Input type="number" step="0.5" {...form.register("rpe")} className="bg-background" data-testid="input-edit-log-rpe" />
+            </div>
+          </div>
+          <div>
+            <Label>Date</Label>
+            <Input type="date" {...form.register("date")} className="bg-background" data-testid="input-edit-log-date" />
+          </div>
+          <Button type="submit" disabled={isPending} className="w-full font-bold uppercase" data-testid="button-save-log">
+            {isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLogConfirm({ open, onOpenChange, logId }: { open: boolean; onOpenChange: (open: boolean) => void; logId: number | null }) {
+  const { mutate, isPending } = useDeleteLog();
+  const { toast } = useToast();
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Set?</AlertDialogTitle>
+          <AlertDialogDescription>This logged set will be permanently removed.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            className="bg-destructive text-destructive-foreground"
+            data-testid="button-confirm-delete-log"
+            onClick={() => {
+              if (!logId) return;
+              mutate(logId, {
+                onSuccess: () => { onOpenChange(false); toast({ title: "Set Deleted" }); },
+                onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+              });
+            }}
+          >
+            {isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

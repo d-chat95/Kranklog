@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
 import { type InsertLog } from "@shared/schema";
 
 type CreateLogInput = InsertLog & { date?: string };
@@ -18,12 +18,10 @@ export function useCreateLog() {
       return api.logs.create.responses[201].parse(await res.json());
     },
     onSuccess: (data, variables) => {
-      // Invalidate specifically the list with these params to ensure immediate update
       const params = { workoutRowId: variables.workoutRowId.toString() };
       queryClient.invalidateQueries({ 
         queryKey: [api.logs.list.path, JSON.stringify(params)]
       });
-      // Also invalidate stats to update e1RM charts and suggestions
       queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });
       queryClient.invalidateQueries({ queryKey: [api.stats.suggestions.path] });
     },
@@ -31,13 +29,11 @@ export function useCreateLog() {
 }
 
 export function useLogs(params?: { workoutRowId?: string; movementFamily?: string; isAnchor?: string }) {
-  // Create a unique key based on params
   const queryKey = [api.logs.list.path, JSON.stringify(params)];
   
   return useQuery({
     queryKey,
     queryFn: async () => {
-      // Build query string manually since we don't have a helper for it yet in shared routes
       const url = new URL(api.logs.list.path, window.location.origin);
       if (params) {
         if (params.workoutRowId) url.searchParams.append("workoutRowId", params.workoutRowId);
@@ -48,6 +44,48 @@ export function useLogs(params?: { workoutRowId?: string; movementFamily?: strin
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch logs");
       return api.logs.list.responses[200].parse(await res.json());
+    },
+  });
+}
+
+export function useUpdateLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { weight?: string; reps?: number; rpe?: string | null; notes?: string | null; date?: string } }) => {
+      const url = buildUrl(api.logs.update.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update log");
+      return await res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === api.logs.list.path });
+      queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });
+      queryClient.invalidateQueries({ queryKey: [api.stats.suggestions.path] });
+    },
+  });
+}
+
+export function useDeleteLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const url = buildUrl(api.logs.delete.path, { id });
+      const res = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete log");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === api.logs.list.path });
+      queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });
+      queryClient.invalidateQueries({ queryKey: [api.stats.suggestions.path] });
     },
   });
 }

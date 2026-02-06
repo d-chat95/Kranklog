@@ -53,6 +53,8 @@ Preferred communication style: Simple, everyday language.
 2. **Storage interface pattern**: The `IStorage` interface in `server/storage.ts` decouples business logic from database implementation
 3. **Replit Auth integration**: Authentication is handled entirely through Replit's OIDC flow. The `setupAuth` function configures Passport.js with the OIDC strategy. All API routes use `isAuthenticated` middleware
 4. **Mobile-first navigation**: Desktop uses a fixed left sidebar (64px wide), mobile uses a bottom tab bar with a floating action button for creating new programs
+5. **Full CRUD with cascade deletes**: All entities (Programs, Workouts, Workout Rows, Logs) support Create, Read, Update (PATCH), and Delete operations. Deletes use explicit transactional cascades (logs → workout_rows → workouts → programs) since FK constraints don't have ON DELETE CASCADE. Log mutations enforce user ownership (userId check).
+6. **React Query invalidation keys**: Use template-based keys `[path, id]` not resolved URLs. Programs: `["/api/programs"]` and `["/api/programs/:id", id]`. Workouts: `["/api/workouts/:id", id]`. Logs: `["/api/logs", JSON.stringify(params)]`. Stats: `["/api/stats/e1rm"]`, `["/api/stats/suggestions"]`.
 
 ## External Dependencies
 
