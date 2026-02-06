@@ -2,12 +2,12 @@ import { Layout } from "@/components/Layout";
 import { useWorkout, useCreateWorkoutRow, useUpdateWorkout, useDeleteWorkout, useUpdateWorkoutRow, useDeleteWorkoutRow, useCompleteWorkout } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs, useUpdateLog, useDeleteLog } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQueries } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical, Flag } from "lucide-react";
+import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical, Flag, TrendingUp, Target, AlertTriangle, BarChart3, ClipboardList } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,17 +48,20 @@ export default function WorkoutSession() {
   const [, navigate] = useLocation();
   const { mutate: completeWorkout, isPending: isCompleting } = useCompleteWorkout();
   const { toast } = useToast();
+  const [viewMode, setViewMode] = useState<"report" | "exercises">("report");
   
   if (isLoading) return <Layout><LoadingSpinner /></Layout>;
   if (!workout) return <Layout><div className="p-8 text-center">Workout not found</div></Layout>;
 
   const isToday = sessionDate === format(new Date(), "yyyy-MM-dd");
   const isCompleted = !!workout.completedAt;
+  const showReport = isCompleted && viewMode === "report";
 
   const handleFinishWorkout = () => {
     completeWorkout({ id: workoutId }, {
       onSuccess: () => {
         toast({ title: "Workout Complete", description: "Great session! Your data has been saved." });
+        setViewMode("report");
       },
       onError: (err) => {
         toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -91,21 +94,47 @@ export default function WorkoutSession() {
               <p className="text-muted-foreground">{workout.description}</p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-muted-foreground" />
-                <Label className="text-xs uppercase text-muted-foreground sr-only">Session Date</Label>
-                <Input
-                  type="date"
-                  value={sessionDate}
-                  onChange={e => setSessionDate(e.target.value)}
-                  className="bg-card border-border w-[160px]"
-                  data-testid="input-session-date"
-                />
-              </div>
-              {!isToday && (
-                <span className="text-xs text-yellow-500 font-semibold uppercase tracking-wider">Backfill</span>
+              {isCompleted && (
+                <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-view-mode">
+                  <button
+                    onClick={() => setViewMode("report")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors flex items-center gap-1 ${
+                      viewMode === "report" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover-elevate"
+                    }`}
+                    data-testid="button-view-report"
+                  >
+                    <BarChart3 className="w-3 h-3" /> Report
+                  </button>
+                  <button
+                    onClick={() => setViewMode("exercises")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors flex items-center gap-1 ${
+                      viewMode === "exercises" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover-elevate"
+                    }`}
+                    data-testid="button-view-exercises"
+                  >
+                    <ClipboardList className="w-3 h-3" /> Exercises
+                  </button>
+                </div>
               )}
-              <AddExerciseDialog workoutId={workoutId} />
+              {!showReport && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <Label className="text-xs uppercase text-muted-foreground sr-only">Session Date</Label>
+                    <Input
+                      type="date"
+                      value={sessionDate}
+                      onChange={e => setSessionDate(e.target.value)}
+                      className="bg-card border-border w-[160px]"
+                      data-testid="input-session-date"
+                    />
+                  </div>
+                  {!isToday && (
+                    <span className="text-xs text-yellow-500 font-semibold uppercase tracking-wider">Backfill</span>
+                  )}
+                  <AddExerciseDialog workoutId={workoutId} />
+                </>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" data-testid="button-workout-actions">
@@ -126,48 +155,52 @@ export default function WorkoutSession() {
         </div>
       }
     >
-      <div className="space-y-6 pb-20">
-        {isCompleted && (
-          <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-md" data-testid="banner-completed">
-            <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-foreground">Workout completed</p>
-              <p className="text-xs text-muted-foreground">
-                Finished {format(new Date(workout.completedAt!), "MMM d, yyyy 'at' h:mm a")}
-              </p>
+      {showReport ? (
+        <WorkoutReport workout={workout} onEditLogs={() => setViewMode("exercises")} />
+      ) : (
+        <div className="space-y-6 pb-20">
+          {isCompleted && (
+            <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-md" data-testid="banner-completed">
+              <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Workout completed</p>
+                <p className="text-xs text-muted-foreground">
+                  Finished {format(new Date(workout.completedAt!), "MMM d, yyyy 'at' h:mm a")}
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {workout.rows?.length === 0 && (
-          <div className="text-center py-20 bg-card/50 rounded-xl border border-dashed border-border">
-            <p className="text-muted-foreground mb-4">No exercises in this workout.</p>
-            <AddExerciseDialog workoutId={workoutId} triggerText="Add First Exercise" />
-          </div>
-        )}
+          {workout.rows?.length === 0 && (
+            <div className="text-center py-20 bg-card/50 rounded-xl border border-dashed border-border">
+              <p className="text-muted-foreground mb-4">No exercises in this workout.</p>
+              <AddExerciseDialog workoutId={workoutId} triggerText="Add First Exercise" />
+            </div>
+          )}
 
-        {workout.rows?.sort((a,b) => a.orderLabel.localeCompare(b.orderLabel)).map((row) => (
-          <ExerciseRowCard key={row.id} row={row} sessionDate={sessionDate} workoutId={workoutId} />
-        ))}
+          {workout.rows?.sort((a,b) => a.orderLabel.localeCompare(b.orderLabel)).map((row) => (
+            <ExerciseRowCard key={row.id} row={row} sessionDate={sessionDate} workoutId={workoutId} />
+          ))}
 
-        {!isCompleted && workout.rows && workout.rows.length > 0 && (
-          <div className="pt-4 border-t border-border">
-            <Button
-              onClick={handleFinishWorkout}
-              disabled={isCompleting}
-              variant="default"
-              className="w-full h-14 text-lg font-bold uppercase tracking-widest"
-              data-testid="button-finish-workout"
-            >
-              {isCompleting ? (
-                "Completing..."
-              ) : (
-                <><Flag className="w-5 h-5 mr-2" /> Finish Workout</>
-              )}
-            </Button>
-          </div>
-        )}
-      </div>
+          {!isCompleted && workout.rows && workout.rows.length > 0 && (
+            <div className="pt-4 border-t border-border">
+              <Button
+                onClick={handleFinishWorkout}
+                disabled={isCompleting}
+                variant="default"
+                className="w-full h-14 text-lg font-bold uppercase tracking-widest"
+                data-testid="button-finish-workout"
+              >
+                {isCompleting ? (
+                  "Completing..."
+                ) : (
+                  <><Flag className="w-5 h-5 mr-2" /> Finish Workout</>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {editingWorkout && (
         <EditWorkoutDialog
@@ -185,6 +218,260 @@ export default function WorkoutSession() {
         onDeleted={() => navigate(`/programs/${workout.programId}`)}
       />
     </Layout>
+  );
+}
+
+type LogWithRow = Log & { row: WorkoutRow };
+
+function computeE1RM(weight: number, reps: number, rpe: number): number {
+  const effectiveReps = reps + (10 - rpe);
+  return weight * (1 + 0.0333 * effectiveReps);
+}
+
+function WorkoutReport({ workout, onEditLogs }: { workout: any; onEditLogs: () => void }) {
+  const rows: WorkoutRow[] = workout.rows || [];
+  const rowIds = rows.map(r => r.id);
+
+  const logQueries = useQueries({
+    queries: rowIds.map(id => ({
+      queryKey: [api.logs.list.path, JSON.stringify({ workoutRowId: id.toString() })],
+      queryFn: async () => {
+        const url = new URL(api.logs.list.path, window.location.origin);
+        url.searchParams.append("workoutRowId", id.toString());
+        const res = await fetch(url.toString(), { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch logs");
+        return api.logs.list.responses[200].parse(await res.json()) as LogWithRow[];
+      },
+    })),
+  });
+
+  const allLogsLoading = logQueries.some(q => q.isLoading);
+
+  const logDataKey = logQueries.map(q => q.dataUpdatedAt).join(",");
+  const rowLogsMap = useMemo(() => {
+    const map = new Map<number, LogWithRow[]>();
+    logQueries.forEach((q, idx) => {
+      if (q.data) map.set(rowIds[idx], q.data);
+      else map.set(rowIds[idx], []);
+    });
+    return map;
+  }, [logDataKey]);
+
+  const totalSets = useMemo(() => {
+    let count = 0;
+    rowLogsMap.forEach(logs => { count += logs.length; });
+    return count;
+  }, [rowLogsMap]);
+
+  const rowAnalysis = useMemo(() => {
+    return rows
+      .sort((a, b) => a.orderLabel.localeCompare(b.orderLabel))
+      .map(row => {
+        const logs = rowLogsMap.get(row.id) || [];
+        const prescribedReps = parseInt(row.reps) || 0;
+        const prescribedRPE = row.intensityValue ? parseFloat(row.intensityValue) : null;
+
+        let bestSet: LogWithRow | null = null;
+        let bestE1RM = 0;
+
+        for (const log of logs) {
+          const w = Number(log.weight) || 0;
+          const r = log.reps || 0;
+          const rpe = Number(log.rpe) || 10;
+          const e1rm = computeE1RM(w, r, rpe);
+          if (e1rm > bestE1RM) {
+            bestE1RM = e1rm;
+            bestSet = log;
+          }
+        }
+
+        let status: "hit" | "miss" | "partial" = "miss";
+        if (logs.length === 0) {
+          status = "miss";
+        } else {
+          const hasFullSet = logs.some(log => {
+            const actualReps = log.reps || 0;
+            const actualRPE = Number(log.rpe) || 10;
+            const repsOk = actualReps >= prescribedReps;
+            const rpeOk = prescribedRPE === null || actualRPE <= prescribedRPE + 1;
+            return repsOk && rpeOk;
+          });
+          status = hasFullSet ? "hit" : "partial";
+        }
+
+        return {
+          row,
+          logs,
+          bestSet,
+          bestE1RM: Math.round(bestE1RM),
+          status,
+          prescribedReps,
+          prescribedRPE,
+        };
+      });
+  }, [rows, rowLogsMap]);
+
+  const bestAnchorE1RM = useMemo(() => {
+    let best = { e1rm: 0, liftName: "", weight: 0, reps: 0, rpe: 0 };
+    for (const ra of rowAnalysis) {
+      if (ra.row.isAnchor && ra.bestSet && ra.bestE1RM > best.e1rm) {
+        best = {
+          e1rm: ra.bestE1RM,
+          liftName: ra.row.liftName,
+          weight: Number(ra.bestSet.weight) || 0,
+          reps: ra.bestSet.reps || 0,
+          rpe: Number(ra.bestSet.rpe) || 10,
+        };
+      }
+    }
+    return best.e1rm > 0 ? best : null;
+  }, [rowAnalysis]);
+
+  const notableMiss = useMemo(() => {
+    return rowAnalysis.find(ra => ra.status === "miss" && ra.row.isAnchor) ||
+           rowAnalysis.find(ra => ra.status === "miss");
+  }, [rowAnalysis]);
+
+  if (allLogsLoading) {
+    return <div className="py-12"><LoadingSpinner text="Building report..." /></div>;
+  }
+
+  return (
+    <div className="space-y-6 pb-20" data-testid="workout-report">
+      <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-md" data-testid="banner-completed">
+        <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Workout completed</p>
+          <p className="text-xs text-muted-foreground">
+            Finished {format(new Date(workout.completedAt!), "MMM d, yyyy 'at' h:mm a")}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4" data-testid="session-overview">
+        <div className="gym-card p-4 text-center">
+          <p className="text-xs uppercase text-muted-foreground font-bold tracking-wider mb-1">Date</p>
+          <p className="text-lg font-display font-bold text-foreground" data-testid="report-date">
+            {workout.workoutDate ? format(new Date(workout.workoutDate), "MMM d") : "N/A"}
+          </p>
+        </div>
+        <div className="gym-card p-4 text-center">
+          <p className="text-xs uppercase text-muted-foreground font-bold tracking-wider mb-1">Exercises</p>
+          <p className="text-lg font-display font-bold text-foreground" data-testid="report-exercise-count">{rows.length}</p>
+        </div>
+        <div className="gym-card p-4 text-center">
+          <p className="text-xs uppercase text-muted-foreground font-bold tracking-wider mb-1">Sets Logged</p>
+          <p className="text-lg font-display font-bold text-foreground" data-testid="report-set-count">{totalSets}</p>
+        </div>
+      </div>
+
+      {(bestAnchorE1RM || notableMiss) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="performance-highlights">
+          {bestAnchorE1RM && (
+            <div className="gym-card p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <span className="text-xs uppercase text-muted-foreground font-bold tracking-wider">Best e1RM</span>
+              </div>
+              <p className="text-3xl font-display font-bold text-foreground" data-testid="report-best-e1rm">
+                {bestAnchorE1RM.e1rm} <span className="text-sm text-muted-foreground">lbs</span>
+              </p>
+              <p className="text-sm text-muted-foreground mt-1" data-testid="report-best-e1rm-details">
+                {bestAnchorE1RM.liftName}: {bestAnchorE1RM.weight} lbs x {bestAnchorE1RM.reps} @{bestAnchorE1RM.rpe}
+              </p>
+            </div>
+          )}
+          {notableMiss && (
+            <div className="gym-card p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                <span className="text-xs uppercase text-muted-foreground font-bold tracking-wider">Notable Miss</span>
+              </div>
+              <p className="text-lg font-bold text-foreground" data-testid="report-notable-miss">
+                {notableMiss.row.liftName}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Prescribed {notableMiss.row.sets}x{notableMiss.row.reps}
+                {notableMiss.prescribedRPE ? ` @${notableMiss.prescribedRPE}` : ""} — no sets logged
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div data-testid="prescription-vs-actual">
+        <h3 className="text-sm uppercase text-muted-foreground font-bold tracking-wider mb-3 flex items-center gap-2">
+          <Target className="w-4 h-4" /> Prescription vs Actual
+        </h3>
+        <div className="space-y-2">
+          {rowAnalysis.map(({ row, logs, bestSet, bestE1RM, status, prescribedReps, prescribedRPE }) => (
+            <div key={row.id} className="gym-card p-4" data-testid={`report-row-${row.id}`}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-display font-bold text-primary flex-shrink-0">{row.orderLabel}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-foreground">{row.liftName}</span>
+                      {row.isAnchor && <Anchor className="w-3 h-3 text-red-500 flex-shrink-0" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Rx: {row.sets}x{prescribedReps}
+                      {prescribedRPE ? ` @${prescribedRPE} ${row.intensityType}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  {bestSet ? (
+                    <span className="text-sm font-bold text-foreground" data-testid={`report-best-set-${row.id}`}>
+                      {Number(bestSet.weight)} x {bestSet.reps}{bestSet.rpe ? ` @${bestSet.rpe}` : ""}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">No sets</span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {logs.length} set{logs.length !== 1 ? "s" : ""}
+                  </span>
+                  <StatusBadge status={status} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-4 border-t border-border flex-wrap">
+        <Link href="/progress">
+          <Button variant="default" data-testid="button-view-progress">
+            <TrendingUp className="w-4 h-4 mr-2" /> View Progress
+          </Button>
+        </Link>
+        <Button variant="outline" onClick={onEditLogs} data-testid="button-edit-logs">
+          <Pencil className="w-4 h-4 mr-2" /> Edit Logs
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: "hit" | "miss" | "partial" }) {
+  if (status === "hit") {
+    return (
+      <span className="bg-green-500/20 text-green-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-green-500/20" data-testid="badge-hit">
+        Hit
+      </span>
+    );
+  }
+  if (status === "partial") {
+    return (
+      <span className="bg-yellow-500/20 text-yellow-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-yellow-500/20" data-testid="badge-partial">
+        Partial
+      </span>
+    );
+  }
+  return (
+    <span className="bg-red-500/20 text-red-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-red-500/20" data-testid="badge-miss">
+      Miss
+    </span>
   );
 }
 
