@@ -117,6 +117,18 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
+  app.post(api.workouts.complete.path, isAuthenticated, async (req, res) => {
+    const workoutId = Number(req.params.id);
+    const workout = await storage.getWorkout(workoutId);
+    if (!workout) return res.status(404).json({ message: "Workout not found" });
+    if (workout.completedAt) {
+      return res.status(409).json({ message: "Workout already completed" });
+    }
+    const userId = (req.user as any).claims.sub;
+    const updated = await storage.completeWorkout(workoutId, userId);
+    res.json(updated);
+  });
+
   // ─── Workout Rows ──────────────────────────────────
   app.post(api.workoutRows.create.path, isAuthenticated, async (req, res) => {
     try {

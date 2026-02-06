@@ -60,6 +60,34 @@ export function useUpdateWorkout() {
   });
 }
 
+export function useCompleteWorkout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      const url = buildUrl(api.workouts.complete.path, { id });
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.status === 409) {
+        const data = await res.json();
+        throw new Error(data.message || "Workout already completed");
+      }
+      if (!res.ok) throw new Error("Failed to complete workout");
+      return await res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, result.id] });
+      if (result.programId) {
+        queryClient.invalidateQueries({ queryKey: [api.programs.get.path, result.programId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats/e1rm"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats/suggestions"] });
+    },
+  });
+}
+
 export function useDeleteWorkout() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,11 +1,11 @@
 import { Layout } from "@/components/Layout";
-import { useWorkout, useCreateWorkoutRow, useUpdateWorkout, useDeleteWorkout, useUpdateWorkoutRow, useDeleteWorkoutRow } from "@/hooks/use-workouts";
+import { useWorkout, useCreateWorkoutRow, useUpdateWorkout, useDeleteWorkout, useUpdateWorkoutRow, useDeleteWorkoutRow, useCompleteWorkout } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs, useUpdateLog, useDeleteLog } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical } from "lucide-react";
+import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical, Flag } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -46,11 +46,25 @@ export default function WorkoutSession() {
   const [editingWorkout, setEditingWorkout] = useState(false);
   const [deletingWorkout, setDeletingWorkout] = useState(false);
   const [, navigate] = useLocation();
+  const { mutate: completeWorkout, isPending: isCompleting } = useCompleteWorkout();
+  const { toast } = useToast();
   
   if (isLoading) return <Layout><LoadingSpinner /></Layout>;
   if (!workout) return <Layout><div className="p-8 text-center">Workout not found</div></Layout>;
 
   const isToday = sessionDate === format(new Date(), "yyyy-MM-dd");
+  const isCompleted = !!workout.completedAt;
+
+  const handleFinishWorkout = () => {
+    completeWorkout({ id: workoutId }, {
+      onSuccess: () => {
+        toast({ title: "Workout Complete", description: "Great session! Your data has been saved." });
+      },
+      onError: (err) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      },
+    });
+  };
 
   return (
     <Layout
@@ -61,7 +75,14 @@ export default function WorkoutSession() {
           </Link>
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
-              <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase" data-testid="text-workout-title">{workout.name}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase" data-testid="text-workout-title">{workout.name}</h1>
+                {isCompleted && (
+                  <span className="bg-primary/20 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 border border-primary/20" data-testid="badge-completed">
+                    <CheckCircle2 className="w-3 h-3" /> Completed
+                  </span>
+                )}
+              </div>
               {workout.workoutDate && (
                 <p className="text-sm text-primary font-semibold mt-1" data-testid="text-workout-date">
                   {format(new Date(workout.workoutDate), "EEEE, MMM d, yyyy")}
@@ -106,6 +127,18 @@ export default function WorkoutSession() {
       }
     >
       <div className="space-y-6 pb-20">
+        {isCompleted && (
+          <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-md" data-testid="banner-completed">
+            <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Workout completed</p>
+              <p className="text-xs text-muted-foreground">
+                Finished {format(new Date(workout.completedAt!), "MMM d, yyyy 'at' h:mm a")}
+              </p>
+            </div>
+          </div>
+        )}
+
         {workout.rows?.length === 0 && (
           <div className="text-center py-20 bg-card/50 rounded-xl border border-dashed border-border">
             <p className="text-muted-foreground mb-4">No exercises in this workout.</p>
@@ -116,6 +149,24 @@ export default function WorkoutSession() {
         {workout.rows?.sort((a,b) => a.orderLabel.localeCompare(b.orderLabel)).map((row) => (
           <ExerciseRowCard key={row.id} row={row} sessionDate={sessionDate} workoutId={workoutId} />
         ))}
+
+        {!isCompleted && workout.rows && workout.rows.length > 0 && (
+          <div className="pt-4 border-t border-border">
+            <Button
+              onClick={handleFinishWorkout}
+              disabled={isCompleting}
+              variant="default"
+              className="w-full h-14 text-lg font-bold uppercase tracking-widest"
+              data-testid="button-finish-workout"
+            >
+              {isCompleting ? (
+                "Completing..."
+              ) : (
+                <><Flag className="w-5 h-5 mr-2" /> Finish Workout</>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {editingWorkout && (

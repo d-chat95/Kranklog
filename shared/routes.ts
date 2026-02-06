@@ -106,6 +106,15 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    complete: {
+      method: 'POST' as const,
+      path: '/api/workouts/:id/complete',
+      responses: {
+        200: z.custom<typeof workouts.$inferSelect>(),
+        404: errorSchemas.notFound,
+        409: z.object({ message: z.string() }),
+      },
+    },
   },
   workoutRows: {
     create: {

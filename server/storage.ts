@@ -31,6 +31,8 @@ export interface IStorage {
   deleteLog(id: number): Promise<boolean>;
 
   getLastAnchorLog(userId: string, movementFamily: string, variant?: string): Promise<Log | undefined>;
+
+  completeWorkout(id: number, userId: string): Promise<Workout | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -198,6 +200,14 @@ export class DatabaseStorage implements IStorage {
 
     const [result] = await query;
     return result?.log;
+  }
+
+  async completeWorkout(id: number, userId: string): Promise<Workout | undefined> {
+    const [updated] = await db.update(workouts)
+      .set({ completedAt: new Date(), completedByUserId: userId })
+      .where(eq(workouts.id, id))
+      .returning();
+    return updated;
   }
 }
 
