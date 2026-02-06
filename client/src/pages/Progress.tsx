@@ -41,11 +41,11 @@ export default function Progress() {
     const sorted = [...stats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const byDay = new Map<string, typeof sorted[0]>();
     for (const s of sorted) {
-      const dayKey = format(new Date(s.date), 'yyyy-MM-dd');
+      const dayKey = s.date.slice(0, 10);
       byDay.set(dayKey, s);
     }
-    return Array.from(byDay.values()).map(s => ({
-      date: format(new Date(s.date), 'MMM d'),
+    return Array.from(byDay.entries()).map(([dayKey, s]) => ({
+      date: format(new Date(dayKey + "T12:00:00"), 'MMM d'),
       e1rm: Math.round(s.e1rm),
       weight: s.weight,
       reps: s.reps,
