@@ -86,28 +86,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLogs(userId: string, filters?: { workoutRowId?: number, movementFamily?: string, isAnchor?: boolean }): Promise<(Log & { row: WorkoutRow })[]> {
-    let query = db.select({
+    const whereConditions = [eq(logs.userId, userId)];
+
+    if (filters?.workoutRowId) {
+      whereConditions.push(eq(logs.workoutRowId, filters.workoutRowId));
+    }
+    
+    if (filters?.movementFamily) {
+      whereConditions.push(eq(workoutRows.movementFamily, filters.movementFamily as any));
+    }
+
+    if (filters?.isAnchor !== undefined) {
+      whereConditions.push(eq(workoutRows.isAnchor, filters.isAnchor));
+    }
+
+    const results = await db.select({
       log: logs,
       row: workoutRows
     })
     .from(logs)
     .innerJoin(workoutRows, eq(logs.workoutRowId, workoutRows.id))
-    .where(eq(logs.userId, userId))
+    .where(and(...whereConditions))
     .orderBy(desc(logs.date));
 
-    if (filters?.workoutRowId) {
-      query = query.where(eq(logs.workoutRowId, filters.workoutRowId)) as any;
-    }
-    
-    if (filters?.movementFamily) {
-      query = query.where(eq(workoutRows.movementFamily, filters.movementFamily as any)) as any;
-    }
-
-    if (filters?.isAnchor !== undefined) {
-      query = query.where(eq(workoutRows.isAnchor, filters.isAnchor)) as any;
-    }
-
-    const results = await query;
     return results.map(r => ({ ...r.log, row: r.row }));
   }
 
