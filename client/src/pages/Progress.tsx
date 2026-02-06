@@ -5,11 +5,9 @@ import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
-import { TrendingUp, Dumbbell } from "lucide-react";
+import { TrendingUp, Anchor } from "lucide-react";
 
 type ViewMode = "e1rm" | "actual" | "both";
-type DataSource = "anchors" | "all";
-type AggregationMode = "allSets" | "dailyBest";
 
 const METRIC_COLORS = {
   actual: "#3B82F6",
@@ -26,7 +24,7 @@ function ChartTooltip({ active, payload, label, viewMode }: any) {
       <p className="font-medium text-foreground mb-1">{label}</p>
       {(viewMode === "actual" || viewMode === "both") && (
         <p style={{ color: METRIC_COLORS.actual }}>
-          Actual: {d.weight} &times; {d.reps} @ RPE {d.rpe}
+          Anchor: {d.weight} &times; {d.reps} @ RPE {d.rpe}
         </p>
       )}
       {(viewMode === "e1rm" || viewMode === "both") && (
@@ -41,35 +39,13 @@ function ChartTooltip({ active, payload, label, viewMode }: any) {
 export default function Progress() {
   const [family, setFamily] = useState("Squat");
   const [viewMode, setViewMode] = useState<ViewMode>("e1rm");
-  const [dataSource, setDataSource] = useState<DataSource>("anchors");
-  const [aggregation, setAggregation] = useState<AggregationMode>("allSets");
-  const isAnchor = dataSource === "anchors" ? true : undefined;
-  const { data: stats, isLoading } = useE1RMStats(family, isAnchor);
+  const { data: stats, isLoading } = useE1RMStats(family, true);
 
   const chartData = (() => {
     if (!stats || stats.length === 0) return [];
     const sorted = [...stats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    if (aggregation === "allSets") {
-      return sorted.map((s, i) => ({
-        date: format(new Date(s.date), 'MMM d h:mma').toLowerCase(),
-        e1rm: Math.round(s.e1rm),
-        weight: s.weight,
-        reps: s.reps,
-        rpe: s.rpe,
-      }));
-    }
-
-    const byDay = new Map<string, typeof sorted[0]>();
-    for (const s of sorted) {
-      const dayKey = s.date.slice(0, 10);
-      const existing = byDay.get(dayKey);
-      if (!existing || s.e1rm > existing.e1rm || (s.e1rm === existing.e1rm && Number(s.weight) > Number(existing.weight))) {
-        byDay.set(dayKey, s);
-      }
-    }
-    return Array.from(byDay.entries()).map(([dayKey, s]) => ({
-      date: format(new Date(dayKey + "T12:00:00"), 'MMM d'),
+    return sorted.map(s => ({
+      date: format(new Date(s.date), 'MMM d'),
       e1rm: Math.round(s.e1rm),
       weight: s.weight,
       reps: s.reps,
@@ -85,16 +61,6 @@ export default function Progress() {
     { value: "e1rm", label: "E1RM" },
     { value: "actual", label: "Actual" },
     { value: "both", label: "Both" },
-  ];
-
-  const dataSourceOptions: { value: DataSource; label: string }[] = [
-    { value: "anchors", label: "Anchors" },
-    { value: "all", label: "All Sets" },
-  ];
-
-  const aggregationOptions: { value: AggregationMode; label: string }[] = [
-    { value: "allSets", label: "All Sets" },
-    { value: "dailyBest", label: "Daily Best" },
   ];
 
   return (
@@ -131,7 +97,7 @@ export default function Progress() {
         <div className="gym-card p-6 col-span-1 md:col-span-2 flex flex-col justify-center">
           <h3 className="text-lg font-bold mb-1">Analyst Notes</h3>
           <p className="text-muted-foreground text-sm" data-testid="text-analyst-notes">
-            Based on your {dataSource === "anchors" ? "anchor sets" : "logged sets"}, your estimated 1RM for {family} is trending {
+            Based on your anchor sets, your estimated 1RM for {family} is trending {
               chartData && chartData.length > 1 && chartData[chartData.length-1].e1rm > chartData[0].e1rm ? "upwards" : "stable"
             }.
           </p>
@@ -141,41 +107,9 @@ export default function Progress() {
       <div className="gym-card p-6 h-[450px]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <h3 className="text-xl font-bold flex items-center gap-2">
-            <Dumbbell className="w-5 h-5 text-primary" /> e1RM Trend
+            <Anchor className="w-5 h-5 text-primary" /> Anchor e1RM Trend
           </h3>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-data-source">
-              {dataSourceOptions.map(opt => (
-                <button
-                  key={opt.value}
-                  data-testid={`button-source-${opt.value}`}
-                  onClick={() => setDataSource(opt.value)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors ${
-                    dataSource === opt.value
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover-elevate"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-aggregation">
-              {aggregationOptions.map(opt => (
-                <button
-                  key={opt.value}
-                  data-testid={`button-agg-${opt.value}`}
-                  onClick={() => setAggregation(opt.value)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors ${
-                    aggregation === opt.value
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover-elevate"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
             <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-chart-view">
               {viewOptions.map(opt => (
                 <button
@@ -203,12 +137,9 @@ export default function Progress() {
                 <XAxis 
                   dataKey="date" 
                   stroke="hsl(var(--muted-foreground))" 
-                  fontSize={11} 
+                  fontSize={12} 
                   tickLine={false}
                   axisLine={false}
-                  angle={aggregation === "allSets" && chartData.length > 5 ? -30 : 0}
-                  textAnchor={aggregation === "allSets" && chartData.length > 5 ? "end" : "middle"}
-                  height={aggregation === "allSets" && chartData.length > 5 ? 60 : 30}
                 />
 
                 <YAxis
@@ -240,7 +171,7 @@ export default function Progress() {
                     yAxisId="left"
                     type="monotone" 
                     dataKey="weight"
-                    name="Weight"
+                    name="Anchor Weight"
                     stroke={METRIC_COLORS.actual}
                     strokeWidth={3} 
                     dot={{ r: 4, fill: METRIC_COLORS.actual, strokeWidth: 0 }}
