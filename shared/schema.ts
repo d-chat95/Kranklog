@@ -40,6 +40,8 @@ export const workouts = pgTable("workouts", {
   description: text("description"),
   orderIndex: integer("order_index").notNull(),
   workoutDate: timestamp("workout_date").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  completedByUserId: text("completed_by_user_id"),
 });
 
 // Workout Rows (The prescribed workout)
