@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 
-export function useE1RMStats(movementFamily: string, variant?: string) {
+export function useE1RMStats(movementFamily: string, isAnchor?: boolean) {
   return useQuery({
-    queryKey: [api.stats.e1rm.path, movementFamily, variant],
+    queryKey: [api.stats.e1rm.path, movementFamily, isAnchor],
     queryFn: async () => {
       const url = new URL(api.stats.e1rm.path, window.location.origin);
       url.searchParams.append("movementFamily", movementFamily);
-      if (variant) url.searchParams.append("variant", variant);
+      if (isAnchor !== undefined) url.searchParams.append("isAnchor", String(isAnchor));
       
       const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stats");

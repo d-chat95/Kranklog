@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { TrendingUp, Dumbbell } from "lucide-react";
 
 type ViewMode = "e1rm" | "actual" | "both";
+type DataSource = "anchors" | "all";
 
 const METRIC_COLORS = {
   actual: "#3B82F6",
@@ -39,7 +40,9 @@ function ChartTooltip({ active, payload, label, viewMode }: any) {
 export default function Progress() {
   const [family, setFamily] = useState("Squat");
   const [viewMode, setViewMode] = useState<ViewMode>("e1rm");
-  const { data: stats, isLoading } = useE1RMStats(family);
+  const [dataSource, setDataSource] = useState<DataSource>("anchors");
+  const isAnchor = dataSource === "anchors" ? true : undefined;
+  const { data: stats, isLoading } = useE1RMStats(family, isAnchor);
 
   const chartData = (() => {
     if (!stats || stats.length === 0) return [];
@@ -66,6 +69,11 @@ export default function Progress() {
     { value: "e1rm", label: "E1RM" },
     { value: "actual", label: "Actual" },
     { value: "both", label: "Both" },
+  ];
+
+  const dataSourceOptions: { value: DataSource; label: string }[] = [
+    { value: "anchors", label: "Anchors" },
+    { value: "all", label: "All Sets" },
   ];
 
   return (
@@ -102,7 +110,7 @@ export default function Progress() {
         <div className="gym-card p-6 col-span-1 md:col-span-2 flex flex-col justify-center">
           <h3 className="text-lg font-bold mb-1">Analyst Notes</h3>
           <p className="text-muted-foreground text-sm" data-testid="text-analyst-notes">
-            Based on your anchor sets, your estimated 1RM for {family} is trending {
+            Based on your {dataSource === "anchors" ? "anchor sets" : "logged sets"}, your estimated 1RM for {family} is trending {
               chartData && chartData.length > 1 && chartData[chartData.length-1].e1rm > chartData[0].e1rm ? "upwards" : "stable"
             }.
           </p>
@@ -114,21 +122,39 @@ export default function Progress() {
           <h3 className="text-xl font-bold flex items-center gap-2">
             <Dumbbell className="w-5 h-5 text-primary" /> e1RM Trend
           </h3>
-          <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-chart-view">
-            {viewOptions.map(opt => (
-              <button
-                key={opt.value}
-                data-testid={`button-view-${opt.value}`}
-                onClick={() => setViewMode(opt.value)}
-                className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors ${
-                  viewMode === opt.value
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover-elevate"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-data-source">
+              {dataSourceOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  data-testid={`button-source-${opt.value}`}
+                  onClick={() => setDataSource(opt.value)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors ${
+                    dataSource === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover-elevate"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-chart-view">
+              {viewOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  data-testid={`button-view-${opt.value}`}
+                  onClick={() => setViewMode(opt.value)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors ${
+                    viewMode === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover-elevate"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         

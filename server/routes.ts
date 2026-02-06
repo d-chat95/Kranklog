@@ -235,13 +235,16 @@ export async function registerRoutes(
   // ─── Stats & Suggestions ──────────────────────────
   app.get(api.stats.e1rm.path, isAuthenticated, async (req, res) => {
     const userId = (req.user as any).claims.sub;
-    const { movementFamily } = req.query;
+    const { movementFamily, isAnchor } = req.query;
     if (!movementFamily) return res.status(400).json({ message: "Movement family required" });
 
-    const logs = await storage.getLogs(userId, { 
+    const filters: { movementFamily: string; isAnchor?: boolean } = {
       movementFamily: movementFamily as string,
-      isAnchor: true 
-    });
+    };
+    if (isAnchor === "true") filters.isAnchor = true;
+    else if (isAnchor === "false") filters.isAnchor = false;
+
+    const logs = await storage.getLogs(userId, filters);
 
     const stats = logs.map(l => {
       const rpe = Number(l.rpe) || 10;
