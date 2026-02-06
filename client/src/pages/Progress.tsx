@@ -145,70 +145,31 @@ export default function Progress() {
                   axisLine={false}
                 />
 
-                {viewMode === "e1rm" && (
-                  <YAxis
-                    yAxisId="left"
-                    stroke={METRIC_COLORS.e1rm}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={['auto', 'auto']}
-                    label={{ value: "e1RM (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.e1rm, fontSize: 11 } }}
-                  />
-                )}
-
-                {viewMode === "actual" && (
-                  <YAxis
-                    yAxisId="left"
-                    stroke={METRIC_COLORS.actual}
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={['auto', 'auto']}
-                    label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.actual, fontSize: 11 } }}
-                  />
-                )}
-
-                {viewMode === "both" && (
-                  <>
-                    <YAxis
-                      yAxisId="left"
-                      stroke={METRIC_COLORS.actual}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={['auto', 'auto']}
-                      label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.actual, fontSize: 11 } }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      stroke={METRIC_COLORS.e1rm}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={['auto', 'auto']}
-                      label={{ value: "e1RM (lbs)", angle: 90, position: "insideRight", style: { fill: METRIC_COLORS.e1rm, fontSize: 11 } }}
-                    />
-                  </>
-                )}
+                <YAxis
+                  yAxisId="left"
+                  hide={viewMode === "e1rm"}
+                  stroke={METRIC_COLORS.actual}
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={['auto', 'auto']}
+                  label={viewMode !== "e1rm" ? { value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.actual, fontSize: 11 } } : undefined}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  hide={viewMode === "actual"}
+                  stroke={METRIC_COLORS.e1rm}
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={['auto', 'auto']}
+                  label={viewMode !== "actual" ? { value: "e1RM (lbs)", angle: 90, position: "insideRight", style: { fill: METRIC_COLORS.e1rm, fontSize: 11 } } : undefined}
+                />
 
                 <Tooltip content={<ChartTooltip viewMode={viewMode} />} />
 
-                {(viewMode === "e1rm") && (
-                  <Line 
-                    yAxisId="left"
-                    type="monotone" 
-                    dataKey="e1rm"
-                    name="e1RM"
-                    stroke={METRIC_COLORS.e1rm}
-                    strokeWidth={3} 
-                    dot={{ r: 4, fill: METRIC_COLORS.e1rm, strokeWidth: 0 }}
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
-                )}
-
-                {(viewMode === "actual") && (
+                {(viewMode === "actual" || viewMode === "both") && (
                   <Line 
                     yAxisId="left"
                     type="monotone" 
@@ -221,30 +182,18 @@ export default function Progress() {
                   />
                 )}
 
-                {(viewMode === "both") && (
-                  <>
-                    <Line 
-                      yAxisId="left"
-                      type="monotone" 
-                      dataKey="weight"
-                      name="Weight"
-                      stroke={METRIC_COLORS.actual}
-                      strokeWidth={3} 
-                      dot={{ r: 4, fill: METRIC_COLORS.actual, strokeWidth: 0 }}
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                    />
-                    <Line 
-                      yAxisId="right"
-                      type="monotone" 
-                      dataKey="e1rm"
-                      name="e1RM"
-                      stroke={METRIC_COLORS.e1rm}
-                      strokeWidth={3} 
-                      strokeDasharray="6 3"
-                      dot={{ r: 4, fill: METRIC_COLORS.e1rm, strokeWidth: 0 }}
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                    />
-                  </>
+                {(viewMode === "e1rm" || viewMode === "both") && (
+                  <Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="e1rm"
+                    name="e1RM"
+                    stroke={METRIC_COLORS.e1rm}
+                    strokeWidth={3} 
+                    strokeDasharray={viewMode === "both" ? "6 4" : undefined}
+                    dot={{ r: 4, fill: METRIC_COLORS.e1rm, strokeWidth: 0 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
                 )}
               </LineChart>
             </ResponsiveContainer>
