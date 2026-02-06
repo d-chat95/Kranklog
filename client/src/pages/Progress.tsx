@@ -36,15 +36,24 @@ export default function Progress() {
   const [viewMode, setViewMode] = useState<ViewMode>("e1rm");
   const { data: stats, isLoading } = useE1RMStats(family);
 
-  const chartData = stats?.map(s => ({
-    date: format(new Date(s.date), 'MMM d'),
-    e1rm: Math.round(s.e1rm),
-    weight: s.weight,
-    reps: s.reps,
-    rpe: s.rpe
-  })).reverse();
+  const chartData = (() => {
+    if (!stats || stats.length === 0) return [];
+    const sorted = [...stats].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const byDay = new Map<string, typeof sorted[0]>();
+    for (const s of sorted) {
+      const dayKey = format(new Date(s.date), 'yyyy-MM-dd');
+      byDay.set(dayKey, s);
+    }
+    return Array.from(byDay.values()).map(s => ({
+      date: format(new Date(s.date), 'MMM d'),
+      e1rm: Math.round(s.e1rm),
+      weight: s.weight,
+      reps: s.reps,
+      rpe: s.rpe
+    }));
+  })();
 
-  const currentMax = chartData && chartData.length > 0 
+  const currentMax = chartData.length > 0 
     ? Math.max(...chartData.map(d => d.e1rm)) 
     : 0;
 
