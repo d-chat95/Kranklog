@@ -36,9 +36,10 @@ export const programs = pgTable("programs", {
 export const workouts = pgTable("workouts", {
   id: serial("id").primaryKey(),
   programId: integer("program_id").notNull().references(() => programs.id),
-  name: text("name").notNull(), // e.g., "Week 1 Day 1"
+  name: text("name").notNull(),
   description: text("description"),
   orderIndex: integer("order_index").notNull(),
+  workoutDate: timestamp("workout_date").defaultNow().notNull(),
 });
 
 // Workout Rows (The prescribed workout)

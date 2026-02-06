@@ -70,7 +70,15 @@ export async function registerRoutes(
   app.post(api.workouts.create.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.workouts.create.input.parse(req.body);
-      const workout = await storage.createWorkout(input);
+      const { workoutDate, ...rest } = input;
+      let parsedDate = new Date();
+      if (workoutDate) {
+        parsedDate = new Date(workoutDate);
+        if (isNaN(parsedDate.getTime())) {
+          return res.status(400).json({ message: "Invalid workout date" });
+        }
+      }
+      const workout = await storage.createWorkout({ ...rest, workoutDate: parsedDate });
       res.status(201).json(workout);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -83,7 +91,16 @@ export async function registerRoutes(
   app.patch(api.workouts.update.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.workouts.update.input.parse(req.body);
-      const updated = await storage.updateWorkout(Number(req.params.id), input);
+      const { workoutDate, ...rest } = input;
+      const updateData: any = { ...rest };
+      if (workoutDate) {
+        const parsedDate = new Date(workoutDate);
+        if (isNaN(parsedDate.getTime())) {
+          return res.status(400).json({ message: "Invalid workout date" });
+        }
+        updateData.workoutDate = parsedDate;
+      }
+      const updated = await storage.updateWorkout(Number(req.params.id), updateData);
       if (!updated) return res.status(404).json({ message: "Workout not found" });
       res.json(updated);
     } catch (err) {

@@ -44,7 +44,7 @@ export class DatabaseStorage implements IStorage {
 
     const programWorkouts = await db.select().from(workouts)
       .where(eq(workouts.programId, id))
-      .orderBy(workouts.orderIndex);
+      .orderBy(workouts.workoutDate);
 
     return { ...program[0], workouts: programWorkouts };
   }

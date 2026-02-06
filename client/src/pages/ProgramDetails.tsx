@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useProgram, useUpdateProgram, useDeleteProgram } from "@/hooks/use-programs";
 import { useCreateWorkout, useUpdateWorkout, useDeleteWorkout } from "@/hooks/use-workouts";
 import { useRoute, Link, useLocation } from "wouter";
-import { Plus, ArrowLeft, ChevronRight, Pencil, Trash2, MoreVertical } from "lucide-react";
+import { Plus, ArrowLeft, ChevronRight, Pencil, Trash2, MoreVertical, CalendarDays } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
 import { useState } from "react";
 import {
@@ -23,10 +23,12 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { Workout } from "@shared/schema";
+import { format } from "date-fns";
 
 const workoutSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Title is required"),
   description: z.string().optional(),
+  workoutDate: z.string().min(1, "Date is required"),
 });
 
 export default function ProgramDetails() {
@@ -47,6 +49,7 @@ export default function ProgramDetails() {
     defaultValues: {
       name: "",
       description: "",
+      workoutDate: format(new Date(), "yyyy-MM-dd"),
     },
   });
 
@@ -58,10 +61,11 @@ export default function ProgramDetails() {
       name: data.name,
       description: data.description,
       orderIndex: currentMaxOrder + 1,
-    }, {
+      workoutDate: data.workoutDate + "T12:00:00",
+    } as any, {
       onSuccess: () => {
         setIsDialogOpen(false);
-        form.reset();
+        form.reset({ name: "", description: "", workoutDate: format(new Date(), "yyyy-MM-dd") });
         toast({ title: "Workout Created", description: `${data.name} added to program.` });
       },
       onError: (error) => {
@@ -120,12 +124,23 @@ export default function ProgramDetails() {
               </DialogHeader>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name (e.g., Week 1 Day 1)</Label>
+                  <Label htmlFor="workoutDate">Workout Date</Label>
+                  <Input 
+                    id="workoutDate"
+                    type="date"
+                    {...form.register("workoutDate")} 
+                    className="bg-background border-input focus:border-primary"
+                    data-testid="input-workout-date"
+                  />
+                  {form.formState.errors.workoutDate && <p className="text-destructive text-sm">{form.formState.errors.workoutDate.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Title</Label>
                   <Input 
                     id="name" 
                     {...form.register("name")} 
                     className="bg-background border-input focus:border-primary"
-                    placeholder="W1D1 - Lower Body"
+                    placeholder="Lower Body"
                     data-testid="input-workout-name"
                   />
                   {form.formState.errors.name && <p className="text-destructive text-sm">{form.formState.errors.name.message}</p>}
@@ -155,14 +170,18 @@ export default function ProgramDetails() {
             </div>
           )}
           
-          {program.workouts?.sort((a,b) => a.orderIndex - b.orderIndex).map((workout) => (
+          {program.workouts?.map((workout) => (
             <div key={workout.id} className="gym-card p-5 flex items-center justify-between group">
               <Link href={`/workouts/${workout.id}`} className="flex items-center gap-4 flex-1 cursor-pointer">
-                <div className="bg-secondary w-10 h-10 rounded-full flex items-center justify-center font-display font-bold text-lg text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  {workout.orderIndex}
+                <div className="bg-secondary w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                  <CalendarDays className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold" data-testid={`text-workout-name-${workout.id}`}>{workout.name}</h3>
+                  <h3 className="text-xl font-bold" data-testid={`text-workout-name-${workout.id}`}>
+                    <span className="text-muted-foreground font-normal text-base">{workout.workoutDate ? format(new Date(workout.workoutDate), "MMM d, yyyy") : "No date"}</span>
+                    <span className="mx-2 text-muted-foreground/50">&mdash;</span>
+                    {workout.name}
+                  </h3>
                   <p className="text-sm text-muted-foreground">{workout.description || "No description"}</p>
                 </div>
               </Link>
@@ -296,15 +315,19 @@ function DeleteProgramConfirm({ open, onOpenChange, programId, onDeleted }: { op
 function EditWorkoutDialog({ workout, open, onOpenChange }: { workout: Workout; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { mutate, isPending } = useUpdateWorkout();
   const { toast } = useToast();
-  const schema = z.object({ name: z.string().min(1), description: z.string().optional() });
+  const schema = z.object({ name: z.string().min(1), description: z.string().optional(), workoutDate: z.string().min(1) });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: workout.name, description: workout.description || "" },
+    defaultValues: {
+      name: workout.name,
+      description: workout.description || "",
+      workoutDate: workout.workoutDate ? format(new Date(workout.workoutDate), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    },
   });
 
   const onSubmit = (data: z.infer<typeof schema>) => {
-    mutate({ id: workout.id, data }, {
+    mutate({ id: workout.id, data: { name: data.name, description: data.description, workoutDate: data.workoutDate + "T12:00:00" } as any }, {
       onSuccess: () => { onOpenChange(false); toast({ title: "Workout Updated" }); },
       onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
     });
@@ -316,7 +339,11 @@ function EditWorkoutDialog({ workout, open, onOpenChange }: { workout: Workout; 
         <DialogHeader><DialogTitle className="font-display text-2xl uppercase">Edit Workout</DialogTitle></DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="space-y-2">
-            <Label>Name</Label>
+            <Label>Workout Date</Label>
+            <Input type="date" {...form.register("workoutDate")} className="bg-background" data-testid="input-edit-workout-date" />
+          </div>
+          <div className="space-y-2">
+            <Label>Title</Label>
             <Input {...form.register("name")} className="bg-background" data-testid="input-edit-workout-name" />
           </div>
           <div className="space-y-2">

@@ -44,7 +44,7 @@ Preferred communication style: Simple, everyday language.
   - `users` - User profiles (Replit Auth managed)
   - `sessions` - Session storage (Replit Auth managed)
   - `programs` - Training program definitions
-  - `workouts` - Individual workout days within programs
+  - `workouts` - Individual workout sessions within programs (has `workout_date` timestamp for the session date)
   - `workout_rows` - Prescribed exercises with sets/reps/intensity targets
   - `logs` - Actual logged performance (weight, reps, RPE, timestamps)
 

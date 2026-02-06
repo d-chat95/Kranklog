@@ -62,6 +62,11 @@ export default function WorkoutSession() {
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
               <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase" data-testid="text-workout-title">{workout.name}</h1>
+              {workout.workoutDate && (
+                <p className="text-sm text-primary font-semibold mt-1" data-testid="text-workout-date">
+                  {format(new Date(workout.workoutDate), "EEEE, MMM d, yyyy")}
+                </p>
+              )}
               <p className="text-muted-foreground">{workout.description}</p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -544,15 +549,19 @@ function DeleteRowConfirm({ open, onOpenChange, rowId, workoutId }: { open: bool
 function EditWorkoutDialog({ workout, open, onOpenChange }: { workout: any; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { mutate, isPending } = useUpdateWorkout();
   const { toast } = useToast();
-  const schema = z.object({ name: z.string().min(1), description: z.string().optional() });
+  const schema = z.object({ name: z.string().min(1), description: z.string().optional(), workoutDate: z.string().min(1) });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: workout.name, description: workout.description || "" },
+    defaultValues: {
+      name: workout.name,
+      description: workout.description || "",
+      workoutDate: workout.workoutDate ? format(new Date(workout.workoutDate), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    },
   });
 
   const onSubmit = (data: z.infer<typeof schema>) => {
-    mutate({ id: workout.id, data }, {
+    mutate({ id: workout.id, data: { name: data.name, description: data.description, workoutDate: data.workoutDate + "T12:00:00" } as any }, {
       onSuccess: () => { onOpenChange(false); toast({ title: "Workout Updated" }); },
       onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
     });
@@ -564,7 +573,11 @@ function EditWorkoutDialog({ workout, open, onOpenChange }: { workout: any; open
         <DialogHeader><DialogTitle className="font-display text-2xl uppercase">Edit Workout</DialogTitle></DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="space-y-2">
-            <Label>Name</Label>
+            <Label>Workout Date</Label>
+            <Input type="date" {...form.register("workoutDate")} className="bg-background" data-testid="input-edit-workout-date" />
+          </div>
+          <div className="space-y-2">
+            <Label>Title</Label>
             <Input {...form.register("name")} className="bg-background" data-testid="input-edit-workout-name" />
           </div>
           <div className="space-y-2">

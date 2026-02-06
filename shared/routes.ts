@@ -82,7 +82,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/workouts',
-      input: insertWorkoutSchema,
+      input: insertWorkoutSchema.extend({ workoutDate: z.string().optional() }),
       responses: {
         201: z.custom<typeof workouts.$inferSelect>(),
         400: errorSchemas.validation,
@@ -91,7 +91,7 @@ export const api = {
     update: {
       method: 'PATCH' as const,
       path: '/api/workouts/:id',
-      input: insertWorkoutSchema.partial(),
+      input: insertWorkoutSchema.partial().extend({ workoutDate: z.string().optional() }),
       responses: {
         200: z.custom<typeof workouts.$inferSelect>(),
         404: errorSchemas.notFound,
