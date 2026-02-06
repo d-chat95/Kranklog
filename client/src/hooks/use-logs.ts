@@ -16,7 +16,10 @@ export function useCreateLog() {
       return api.logs.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+      // Invalidate specifically the list with these params to ensure immediate update
+      queryClient.invalidateQueries({ 
+        queryKey: [api.logs.list.path] 
+      });
       // Also invalidate stats to update e1RM charts and suggestions
       queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });
       queryClient.invalidateQueries({ queryKey: [api.stats.suggestions.path] });

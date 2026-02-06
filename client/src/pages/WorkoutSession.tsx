@@ -2,6 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useWorkout, useCreateWorkoutRow } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { ArrowLeft, Plus, CheckCircle2, History, Anchor } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
@@ -76,15 +77,19 @@ export default function WorkoutSession() {
 // --- Component: Exercise Row (The main logging unit) ---
 function ExerciseRow({ row }: { row: any }) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { mutate: logSet, isPending } = useCreateLog();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   // Local state for the inputs
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
   const [rpe, setRpe] = useState("");
 
-  const { user } = useAuth();
+  const { mutate: logSet, isPending } = useCreateLog();
+  
+  // Fetch logs for this row to show history
+  const { data: logs } = useLogs({ workoutRowId: row.id.toString() });
 
   const handleLog = () => {
     if (!weight || !reps) {
@@ -102,16 +107,16 @@ function ExerciseRow({ row }: { row: any }) {
     }, {
       onSuccess: () => {
         toast({ title: "Set Logged", description: `${weight} lbs x ${reps}` });
-        // Optional: clear inputs or keep for next set? Usually keep weight, maybe clear reps/rpe
+        // Manually invalidate the specific query for this row to force refresh
+        queryClient.invalidateQueries({ 
+          queryKey: [api.logs.list.path, JSON.stringify({ workoutRowId: row.id.toString() })] 
+        });
       },
       onError: (err) => {
         toast({ title: "Error", description: err.message, variant: "destructive" });
       }
     });
   };
-
-  // Fetch logs for this row to show history
-  const { data: logs } = useLogs({ workoutRowId: row.id.toString() });
 
   return (
     <div className="gym-card overflow-hidden">
