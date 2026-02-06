@@ -167,11 +167,11 @@ export async function registerRoutes(
     // 1x3 @ 6 RPE -> Effective reps = 3 + (10-6) = 7. 
     // Weight = E1RM / (1 + 0.0333 * 7)
     const factor3 = 1 + 0.0333 * 7;
-    const suggestion1x3 = Math.round((e1rm / factor3) / 2.5) * 2.5; // Round to nearest 2.5
+    const suggestion1x3 = Math.round((e1rm / factor3) * 10) / 10; // Round to 1 decimal place
 
     // 1x5 @ 6 RPE -> Effective reps = 5 + (10-6) = 9.
     const factor5 = 1 + 0.0333 * 9;
-    const suggestion1x5 = Math.round((e1rm / factor5) / 2.5) * 2.5;
+    const suggestion1x5 = Math.round((e1rm / factor5) * 10) / 10;
 
     res.json({
       suggestion1x3,

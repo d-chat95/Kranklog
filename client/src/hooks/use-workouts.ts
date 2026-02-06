@@ -31,6 +31,7 @@ export function useCreateWorkout() {
     },
     onSuccess: (_, variables) => {
       // Invalidate the specific program this workout belongs to
+      queryClient.invalidateQueries({ queryKey: [api.programs.list.path] });
       const programUrl = buildUrl(api.programs.get.path, { id: variables.programId });
       queryClient.invalidateQueries({ queryKey: [programUrl] });
     },

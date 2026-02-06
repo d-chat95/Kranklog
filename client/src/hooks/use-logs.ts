@@ -15,8 +15,11 @@ export function useCreateLog() {
       if (!res.ok) throw new Error("Failed to log set");
       return api.logs.create.responses[201].parse(await res.json());
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.logs.list.path] });
+      // Also invalidate stats to update e1RM charts and suggestions
+      queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });
+      queryClient.invalidateQueries({ queryKey: [api.stats.suggestions.path] });
     },
   });
 }
