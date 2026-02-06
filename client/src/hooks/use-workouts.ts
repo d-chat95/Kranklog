@@ -30,10 +30,8 @@ export function useCreateWorkout() {
       return api.workouts.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      // Invalidate the specific program this workout belongs to
       queryClient.invalidateQueries({ queryKey: [api.programs.list.path] });
-      const programUrl = buildUrl(api.programs.get.path, { id: variables.programId });
-      queryClient.invalidateQueries({ queryKey: [programUrl] });
+      queryClient.invalidateQueries({ queryKey: [api.programs.get.path, variables.programId] });
     },
   });
 }
@@ -52,8 +50,7 @@ export function useCreateWorkoutRow() {
       return api.workoutRows.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      const workoutUrl = buildUrl(api.workouts.get.path, { id: variables.workoutId });
-      queryClient.invalidateQueries({ queryKey: [workoutUrl] });
+      queryClient.invalidateQueries({ queryKey: [api.workouts.get.path, variables.workoutId] });
     },
   });
 }
