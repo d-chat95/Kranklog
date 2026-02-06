@@ -149,7 +149,7 @@ export default function Progress() {
                   yAxisId="left"
                   hide={viewMode === "e1rm"}
                   stroke={METRIC_COLORS.actual}
-                  fontSize={12}
+                  tick={{ fill: METRIC_COLORS.actual, fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                   domain={['auto', 'auto']}
@@ -160,7 +160,7 @@ export default function Progress() {
                   orientation="right"
                   hide={viewMode === "actual"}
                   stroke={METRIC_COLORS.e1rm}
-                  fontSize={12}
+                  tick={{ fill: METRIC_COLORS.e1rm, fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                   domain={['auto', 'auto']}
