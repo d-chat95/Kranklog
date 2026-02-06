@@ -84,6 +84,13 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Cannot log for another user" });
       }
       const log = await storage.createLog(input);
+      
+      console.log("[POST /api/logs] Created Log:");
+      console.log("- id:", log.id);
+      console.log("- workoutRowId:", log.workoutRowId);
+      console.log("- typeof workoutRowId:", typeof log.workoutRowId);
+      console.log("- userId:", log.userId);
+
       res.status(201).json(log);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -97,11 +104,19 @@ export async function registerRoutes(
     const userId = (req.user as any).claims.sub;
     const { workoutRowId, movementFamily, isAnchor } = req.query;
     
+    console.log("[GET /api/logs] Debug Info:");
+    console.log("- req.query:", req.query);
+    console.log("- typeof workoutRowId:", typeof workoutRowId);
+    console.log("- parsed workoutRowId:", workoutRowId ? Number(workoutRowId) : undefined);
+    console.log("- userId:", userId);
+    
     const logs = await storage.getLogs(userId, {
       workoutRowId: workoutRowId ? Number(workoutRowId) : undefined,
       movementFamily: movementFamily as string,
-      isAnchor: isAnchor === "true"
+      isAnchor: typeof isAnchor === "string" ? isAnchor === "true" : undefined
     });
+
+    console.log("- result.length:", logs.length);
     res.json(logs);
   });
 
