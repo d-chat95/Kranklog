@@ -2,7 +2,6 @@ import { Layout } from "@/components/Layout";
 import { useE1RMStats } from "@/hooks/use-stats";
 import { LoadingSpinner } from "@/components/ui/Loading";
 import { useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
 import { TrendingUp, Anchor } from "lucide-react";
@@ -63,24 +62,28 @@ export default function Progress() {
     { value: "both", label: "Both" },
   ];
 
+  const families = ["Squat", "Bench", "Deadlift", "Row", "Carry"];
+
   return (
     <Layout
       header={
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">Progress</h1>
-          <div className="w-40">
-            <Select value={family} onValueChange={setFamily}>
-              <SelectTrigger className="bg-card border-border" data-testid="select-movement-family">
-                <SelectValue placeholder="Movement" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Squat">Squat</SelectItem>
-                <SelectItem value="Bench">Bench</SelectItem>
-                <SelectItem value="Deadlift">Deadlift</SelectItem>
-                <SelectItem value="Row">Row</SelectItem>
-                <SelectItem value="Carry">Carry</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 overflow-x-auto" data-testid="toggle-movement-family">
+            {families.map(f => (
+              <button
+                key={f}
+                data-testid={`button-family-${f.toLowerCase()}`}
+                onClick={() => setFamily(f)}
+                className={`px-3 py-1 text-xs font-semibold rounded-sm transition-colors whitespace-nowrap ${
+                  family === f
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover-elevate"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
         </div>
       }
