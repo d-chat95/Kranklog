@@ -265,13 +265,20 @@ export async function registerRoutes(
 
   app.get(api.stats.suggestions.path, isAuthenticated, async (req, res) => {
     const userId = (req.user as any).claims.sub;
-    const { movementFamily } = req.query;
+    const { movementFamily, targetReps, targetRpe } = req.query;
     if (!movementFamily) return res.status(400).json({ message: "Movement family required" });
 
     const lastLog = await storage.getLastAnchorLog(userId, movementFamily as string);
     
     if (!lastLog) {
-      return res.json({ suggestion1x3: null, suggestion1x5: null });
+      return res.json({
+        suggestion1x3: null,
+        suggestion1x5: null,
+        recommendedWeight: null,
+        recommendedRaw: null,
+        e1rmUsed: null,
+        basedOn: null,
+      });
     }
 
     const rpe = Number(lastLog.rpe) || 10;
@@ -286,9 +293,33 @@ export async function registerRoutes(
     const factor5 = 1 + 0.0333 * 9;
     const suggestion1x5 = Math.round((e1rm / factor5) * 10) / 10;
 
+    let recommendedWeight: number | null = null;
+    let recommendedRaw: number | null = null;
+    let e1rmUsed: number | null = null;
+
+    if (targetReps && targetRpe) {
+      const tReps = parseInt(targetReps as string);
+      const tRpe = parseFloat(targetRpe as string);
+      if (!isNaN(tReps) && !isNaN(tRpe)) {
+        const targetEffectiveReps = tReps + (10 - tRpe);
+        recommendedRaw = e1rm / (1 + 0.0333 * targetEffectiveReps);
+        recommendedWeight = Math.round(recommendedRaw / 5) * 5;
+        e1rmUsed = Math.round(e1rm * 10) / 10;
+      }
+    }
+
     res.json({
       suggestion1x3,
-      suggestion1x5
+      suggestion1x5,
+      recommendedWeight,
+      recommendedRaw,
+      e1rmUsed,
+      basedOn: {
+        date: lastLog.date ? new Date(lastLog.date).toISOString() : new Date().toISOString(),
+        weight,
+        reps,
+        rpe,
+      },
     });
   });
 

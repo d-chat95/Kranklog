@@ -2,6 +2,7 @@ import { Layout } from "@/components/Layout";
 import { useWorkout, useCreateWorkoutRow, useUpdateWorkout, useDeleteWorkout, useUpdateWorkoutRow, useDeleteWorkoutRow, useCompleteWorkout } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs, useUpdateLog, useDeleteLog } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
+import { useLoadRecommendation } from "@/hooks/use-stats";
 import { useQueryClient, useQueries } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useRoute, Link, useLocation } from "wouter";
@@ -727,7 +728,61 @@ function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, trig
   );
 }
 
+function RecommendedLoadDisplay({ movementFamily, reps, rpe }: { movementFamily: string; reps: string; rpe: string }) {
+  const { data, isLoading } = useLoadRecommendation(movementFamily, reps, rpe);
+
+  const repsNum = parseInt(reps);
+  const rpeNum = parseFloat(rpe);
+  const hasInputs = !!movementFamily && !isNaN(repsNum) && repsNum > 0 && !isNaN(rpeNum) && rpeNum > 0;
+
+  if (!hasInputs) return null;
+
+  if (isLoading) {
+    return (
+      <div className="p-3 rounded-md bg-primary/5 border border-primary/10 text-sm text-muted-foreground" data-testid="recommended-load-loading">
+        Calculating...
+      </div>
+    );
+  }
+
+  if (!data?.recommendedWeight) {
+    return (
+      <div className="p-3 rounded-md bg-muted/50 border border-border text-sm text-muted-foreground" data-testid="recommended-load-none">
+        No recommendation yet — log an anchor set.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 rounded-md bg-primary/10 border border-primary/20" data-testid="recommended-load">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Target className="w-4 h-4 text-primary flex-shrink-0" />
+        <span className="text-sm font-bold text-foreground" data-testid="recommended-load-value">
+          Recommended Load: {data.recommendedWeight} lbs
+        </span>
+        {data.recommendedRaw != null && (
+          <span className="text-xs text-muted-foreground" data-testid="recommended-load-raw">
+            (calc {data.recommendedRaw.toFixed(1)} lbs)
+          </span>
+        )}
+      </div>
+      {data.basedOn && (
+        <p className="text-xs text-muted-foreground mt-1" data-testid="recommended-load-basis">
+          Based on {data.basedOn.weight} lbs x {data.basedOn.reps} @{data.basedOn.rpe} (e1RM: {data.e1rmUsed} lbs)
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ExerciseForm({ form, onSubmit, isPending, submitLabel }: { form: any; onSubmit: (data: any) => void; isPending: boolean; submitLabel: string }) {
+  const watchedMovementFamily = form.watch("movementFamily") || "";
+  const watchedReps = form.watch("reps") || "";
+  const watchedIntensityValue = form.watch("intensityValue") || "";
+  const watchedIntensityType = form.watch("intensityType") || "RPE";
+
+  const showRecommendation = watchedIntensityType === "RPE" && !!watchedIntensityValue && !!watchedReps && !!watchedMovementFamily;
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
       <div className="grid grid-cols-4 gap-4">
@@ -775,6 +830,14 @@ function ExerciseForm({ form, onSubmit, isPending, submitLabel }: { form: any; o
           </Select>
         </div>
       </div>
+
+      {showRecommendation && (
+        <RecommendedLoadDisplay
+          movementFamily={watchedMovementFamily}
+          reps={watchedReps}
+          rpe={watchedIntensityValue}
+        />
+      )}
 
       <div>
         <Label>Family (for Stats)</Label>

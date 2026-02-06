@@ -31,3 +31,24 @@ export function useSuggestions(movementFamily: string) {
     enabled: !!movementFamily,
   });
 }
+
+export function useLoadRecommendation(movementFamily: string, targetReps: string, targetRpe: string) {
+  const repsNum = parseInt(targetReps);
+  const rpeNum = parseFloat(targetRpe);
+  const enabled = !!movementFamily && !isNaN(repsNum) && repsNum > 0 && !isNaN(rpeNum) && rpeNum > 0;
+
+  return useQuery({
+    queryKey: [api.stats.suggestions.path, movementFamily, targetReps, targetRpe],
+    queryFn: async () => {
+      const url = new URL(api.stats.suggestions.path, window.location.origin);
+      url.searchParams.append("movementFamily", movementFamily);
+      url.searchParams.append("targetReps", targetReps);
+      url.searchParams.append("targetRpe", targetRpe);
+
+      const res = await fetch(url.toString(), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch recommendation");
+      return api.stats.suggestions.responses[200].parse(await res.json());
+    },
+    enabled,
+  });
+}

@@ -1,0 +1,77 @@
+FEATURE: Add Recommended Load calculator to Workout Row form (first implementation)
+
+Context:
+- The app already calculates e1RM from anchor logs.
+- The /api/stats/suggestions endpoint exists but currently returns limited/hard-coded values.
+- There is currently NO load recommendation shown when creating/editing a workout row.
+
+Goal:
+Add a deterministic “Recommended Load” calculator based on the user’s logged anchor history.
+This is a FIRST implementation — do not remove or rename existing UI yet.
+
+────────────────────────
+A) Backend (extend existing endpoint)
+────────────────────────
+
+1) Extend GET /api/stats/suggestions to ACCEPT additional query parameters:
+   - movementFamily (required)
+   - targetReps (required)
+   - targetRpe (required)
+
+2) If anchor history exists:
+   - Compute e1RM from the latest anchor log.
+   - Compute recommended load using:
+     effectiveReps = reps + (10 - rpe)
+     recommendedRaw = e1rm / (1 + 0.0333 * effectiveReps)
+   - Round to nearest 5 lbs.
+
+3) Response shape (additive — do not remove existing fields):
+{
+  recommendedWeight: number,
+  recommendedRaw: number,
+  e1rmUsed: number,
+  basedOn: { date, weight, reps, rpe }
+}
+
+4) If no anchor history exists:
+{
+  recommendedWeight: null
+}
+
+Do NOT remove existing suggestion fields yet.
+
+────────────────────────
+B) Frontend (additive UI)
+────────────────────────
+
+1) In the Workout Row creation/edit form:
+   - When movementFamily, reps, and target RPE are present:
+     - Fetch /api/stats/suggestions with the new parameters.
+   - Display a new inline block:
+     “Recommended Load: {recommendedWeight} lbs”
+     (optional muted text: “calc {recommendedRaw.toFixed(1)} lbs”)
+
+2) If no recommendation is available:
+   - Display: “No recommendation yet — log an anchor set.”
+
+3) Do NOT remove or rename any existing “AI Suggestions” UI in this step.
+   This is additive only.
+
+────────────────────────
+C) Acceptance
+────────────────────────
+
+- Entering reps + RPE shows a Recommended Load.
+- Changing reps or RPE updates the recommendation live.
+- Rounding is to 5 lbs.
+- No existing UI is broken.
+
+────────────────────────
+CHANGE REPORT REQUIRED
+────────────────────────
+
+After implementing, respond with:
+A) Files changed
+B) What changed per file
+C) Example calculation (input → output)
+D) Confirmation that existing suggestion fields still exist

@@ -215,11 +215,22 @@ export const api = {
       path: '/api/stats/suggestions',
       input: z.object({
         movementFamily: z.string(),
+        targetReps: z.string().optional(),
+        targetRpe: z.string().optional(),
       }),
       responses: {
         200: z.object({
           suggestion1x3: z.number().nullable(),
           suggestion1x5: z.number().nullable(),
+          recommendedWeight: z.number().nullable(),
+          recommendedRaw: z.number().nullable(),
+          e1rmUsed: z.number().nullable(),
+          basedOn: z.object({
+            date: z.string(),
+            weight: z.number(),
+            reps: z.number(),
+            rpe: z.number(),
+          }).nullable(),
         }),
       },
     }
