@@ -8,13 +8,13 @@ import { api } from "@shared/routes";
 import { useRoute, Link, useLocation } from "wouter";
 import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays, Pencil, Trash2, MoreVertical, Flag, TrendingUp, Target, AlertTriangle, BarChart3, ClipboardList } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +50,7 @@ export default function WorkoutSession() {
   const { mutate: completeWorkout, isPending: isCompleting } = useCompleteWorkout();
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<"report" | "exercises">("report");
+  const [showDraftCard, setShowDraftCard] = useState(false);
   
   if (isLoading) return <Layout><LoadingSpinner /></Layout>;
   if (!workout) return <Layout><div className="p-8 text-center">Workout not found</div></Layout>;
@@ -133,7 +134,9 @@ export default function WorkoutSession() {
                   {!isToday && (
                     <span className="text-xs text-yellow-500 font-semibold uppercase tracking-wider">Backfill</span>
                   )}
-                  <AddExerciseDialog workoutId={workoutId} />
+                  <Button variant="secondary" onClick={() => setShowDraftCard(true)} disabled={showDraftCard} data-testid="button-add-exercise">
+                    <Plus className="w-4 h-4 mr-2" /> Add Exercise
+                  </Button>
                 </>
               )}
               <DropdownMenu>
@@ -172,10 +175,12 @@ export default function WorkoutSession() {
             </div>
           )}
 
-          {workout.rows?.length === 0 && (
+          {workout.rows?.length === 0 && !showDraftCard && (
             <div className="text-center py-20 bg-card/50 rounded-xl border border-dashed border-border">
               <p className="text-muted-foreground mb-4">No exercises in this workout.</p>
-              <AddExerciseDialog workoutId={workoutId} triggerText="Add First Exercise" />
+              <Button variant="secondary" onClick={() => setShowDraftCard(true)} data-testid="button-add-first-exercise">
+                <Plus className="w-4 h-4 mr-2" /> Add First Exercise
+              </Button>
             </div>
           )}
 
@@ -183,8 +188,24 @@ export default function WorkoutSession() {
             <ExerciseRowCard key={row.id} row={row} sessionDate={sessionDate} workoutId={workoutId} />
           ))}
 
-          {!isCompleted && workout.rows && workout.rows.length > 0 && (
-            <div className="pt-4 border-t border-border">
+          {showDraftCard && (
+            <DraftExerciseCard
+              workoutId={workoutId}
+              onSaved={() => setShowDraftCard(false)}
+              onCancel={() => setShowDraftCard(false)}
+            />
+          )}
+
+          {!isCompleted && !showDraftCard && workout.rows && workout.rows.length > 0 && (
+            <div className="space-y-3 pt-4 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={() => setShowDraftCard(true)}
+                className="w-full"
+                data-testid="button-add-exercise-inline"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Add Exercise
+              </Button>
               <Button
                 onClick={handleFinishWorkout}
                 disabled={isCompleting}
@@ -543,6 +564,13 @@ function ExerciseRowCard({ row, sessionDate, workoutId }: { row: WorkoutRow; ses
               </span>
               {row.rest && <span className="text-muted-foreground italic ml-2">{row.rest} rest</span>}
             </div>
+            {row.intensityType === "RPE" && row.reps && row.movementFamily && row.movementFamily !== "Accessory" && (
+              <CardRecommendedLoad
+                movementFamily={row.movementFamily}
+                reps={row.reps}
+                rpe={row.intensityValue || ""}
+              />
+            )}
           </div>
         </div>
         <DropdownMenu>
@@ -674,11 +702,11 @@ function ExerciseRowCard({ row, sessionDate, workoutId }: { row: WorkoutRow; ses
   );
 }
 
-function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, triggerText?: string }) {
-  const [open, setOpen] = useState(false);
+function DraftExerciseCard({ workoutId, onSaved, onCancel }: { workoutId: number; onSaved: () => void; onCancel: () => void }) {
   const { mutate, isPending } = useCreateWorkoutRow();
   const { toast } = useToast();
-  
+  const cardRef = useRef<HTMLDivElement>(null);
+
   const form = useForm<z.infer<typeof rowSchema>>({
     resolver: zodResolver(rowSchema),
     defaultValues: {
@@ -695,36 +723,41 @@ function AddExerciseDialog({ workoutId, triggerText }: { workoutId: number, trig
     }
   });
 
+  useEffect(() => {
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   const onSubmit = (data: z.infer<typeof rowSchema>) => {
     mutate({
       workoutId,
       ...data
     }, {
       onSuccess: () => {
-        setOpen(false);
         form.reset();
         toast({ title: "Exercise Added" });
+        onSaved();
       },
       onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" })
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary" data-testid="button-add-exercise">
-          {triggerText || (
-            <><Plus className="w-4 h-4 mr-2" /> Add Exercise</>
-          )}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Exercise</DialogTitle>
-        </DialogHeader>
-        <ExerciseForm form={form} onSubmit={onSubmit} isPending={isPending} submitLabel="Add Exercise" />
-      </DialogContent>
-    </Dialog>
+    <div ref={cardRef} className="gym-card overflow-visible border-2 border-primary/30 border-dashed" data-testid="draft-exercise-card">
+      <div className="bg-card p-4 border-b border-border rounded-t-md">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Plus className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-bold text-foreground">New Exercise</h3>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onCancel} data-testid="button-cancel-draft">
+            Cancel
+          </Button>
+        </div>
+      </div>
+      <div className="p-4 bg-background/50">
+        <ExerciseForm form={form} onSubmit={onSubmit} isPending={isPending} submitLabel="Save Exercise" />
+      </div>
+    </div>
   );
 }
 
@@ -772,6 +805,46 @@ function RecommendedLoadDisplay({ movementFamily, reps, rpe }: { movementFamily:
         </p>
       )}
     </div>
+  );
+}
+
+function CardRecommendedLoad({ movementFamily, reps, rpe }: { movementFamily: string; reps: string; rpe: string }) {
+  const repsNum = parseInt(reps);
+  const rpeNum = parseFloat(rpe);
+  const hasInputs = !!movementFamily && !isNaN(repsNum) && repsNum > 0 && !isNaN(rpeNum) && rpeNum > 0;
+
+  if (!hasInputs) {
+    return (
+      <p className="text-xs text-muted-foreground mt-1.5 italic" data-testid="card-load-none">
+        No recommendation yet
+      </p>
+    );
+  }
+
+  return <CardRecommendedLoadInner movementFamily={movementFamily} reps={reps} rpe={rpe} />;
+}
+
+function CardRecommendedLoadInner({ movementFamily, reps, rpe }: { movementFamily: string; reps: string; rpe: string }) {
+  const { data, isLoading } = useLoadRecommendation(movementFamily, reps, rpe);
+
+  if (isLoading) return null;
+
+  if (!data?.recommendedWeight) {
+    return (
+      <p className="text-xs text-muted-foreground mt-1.5 italic" data-testid="card-load-none">
+        No recommendation yet
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-xs text-primary/80 mt-1.5 flex items-center gap-1 flex-wrap" data-testid="card-recommended-load">
+      <Target className="w-3 h-3 flex-shrink-0" />
+      <span>Rec. Load: <span className="font-bold text-primary">{data.recommendedWeight} lbs</span></span>
+      {data.basedOn && (
+        <span className="text-muted-foreground">(from {data.basedOn.weight}x{data.basedOn.reps} @{data.basedOn.rpe})</span>
+      )}
+    </p>
   );
 }
 

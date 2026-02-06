@@ -1,0 +1,49 @@
+FEATURE: Replace “Add Exercise” modal with inline Draft Exercise Card + show Recommended Load on card
+
+Context:
+- Current UX uses a modal “ADD EXERCISE” form.
+- The Recommended Load UI appears in that modal (based on /api/stats/suggestions), but disappears once the exercise row is created and shown as a normal card.
+- User wants an inline creation flow: add button under last exercise -> blank draft card appears -> fill -> commit -> saved card appears.
+
+Goals:
+A) Inline draft exercise creation
+1) On Workout Session page (/workouts/:id):
+   - Remove the modal-based Add Exercise flow (or keep it but do not use it).
+   - Add a button below the last exercise card: “+ Add Exercise”
+2) When clicked:
+   - Insert a new “Draft Exercise Card” at the bottom of the list (inline, not a modal).
+   - The draft card contains the same fields currently in the modal:
+     orderLabel, liftName, variant/details, sets, reps, intensityValue, intensityType (RPE), movementFamily, isAnchor, rest
+   - Provide actions:
+     - “Save Exercise” (commits via POST /api/workout-rows)
+     - “Cancel” (removes the draft card without saving)
+
+B) Recommended Load must appear in BOTH places:
+1) In the Draft Exercise Card while editing:
+   - When intensityType = RPE and reps + intensityValue are present,
+     call existing suggestions logic and show:
+     “Recommended Load: X lbs” + small breakdown line (based on anchor)
+   - If no anchor data: show “No recommendation yet — log an anchor set.”
+
+2) On the Saved Exercise Card (non-draft):
+   - Display a small line under the prescription that shows either:
+     - “Recommended Load (for this prescription): X lbs” (computed at render-time)
+     - OR if no anchor data: “No recommendation yet”
+   - This MUST persist visually (not only in the add form).
+
+Constraints:
+- Do not change backend endpoints or schema.
+- Keep styling consistent with existing shadcn/tailwind.
+- Ensure mobile layout works.
+
+Acceptance:
+- Add Exercise no longer requires a modal.
+- Draft card appears inline and can be cancelled.
+- Recommended Load is visible on draft card and saved card.
+- Saving a new exercise updates the list immediately (no refresh) using correct react-query invalidation.
+
+CHANGE REPORT REQUIRED at end:
+- Files changed
+- What was removed (modal)
+- What was added (draft card)
+- Where recommendation is now rendered (draft + saved card)
