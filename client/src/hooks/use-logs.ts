@@ -15,10 +15,11 @@ export function useCreateLog() {
       if (!res.ok) throw new Error("Failed to log set");
       return api.logs.create.responses[201].parse(await res.json());
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       // Invalidate specifically the list with these params to ensure immediate update
+      const params = { workoutRowId: variables.workoutRowId.toString() };
       queryClient.invalidateQueries({ 
-        queryKey: [api.logs.list.path] 
+        queryKey: [api.logs.list.path, JSON.stringify(params)]
       });
       // Also invalidate stats to update e1RM charts and suggestions
       queryClient.invalidateQueries({ queryKey: [api.stats.e1rm.path] });

@@ -108,10 +108,7 @@ function ExerciseRow({ row }: { row: any }) {
     }, {
       onSuccess: () => {
         toast({ title: "Set Logged", description: `${weight} lbs x ${reps}` });
-        // Manually invalidate the specific query for this row to force refresh
-        queryClient.invalidateQueries({ 
-          queryKey: [api.logs.list.path, JSON.stringify({ workoutRowId: row.id.toString() })] 
-        });
+        // No need for manual invalidation here as useCreateLog handles it
       },
       onError: (err) => {
         toast({ title: "Error", description: err.message, variant: "destructive" });
