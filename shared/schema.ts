@@ -1,5 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, pgEnum } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, pgEnum, index } from "drizzle-orm/pg-core";
+import { relations, desc } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 // Import auth models - CRITICAL for Replit Auth
@@ -55,6 +55,10 @@ export const workoutRows = pgTable("workout_rows", {
   rest: text("rest"),
   isAnchor: boolean("is_anchor").default(false),
   movementFamily: movementFamilyEnum("movement_family").default("Accessory"),
+}, (table) => {
+  return {
+    workoutIdOrderLabelIdx: index("workout_rows_workout_id_order_label_idx").on(table.workoutId, table.orderLabel),
+  };
 });
 
 // Logs (Actual execution)
@@ -67,6 +71,11 @@ export const logs = pgTable("logs", {
   rpe: numeric("rpe"), // Actual RPE
   notes: text("notes"),
   date: timestamp("date").defaultNow(),
+}, (table) => {
+  return {
+    userIdDateIdx: index("logs_user_id_date_idx").on(table.userId, table.date.desc()),
+    workoutRowIdDateIdx: index("logs_workout_row_id_date_idx").on(table.workoutRowId, table.date.desc()),
+  };
 });
 
 // Relations
