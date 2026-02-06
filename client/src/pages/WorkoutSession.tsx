@@ -101,7 +101,7 @@ function ExerciseRow({ row }: { row: any }) {
       notes: "",
     }, {
       onSuccess: () => {
-        toast({ title: "Set Logged", description: `${weight} Lbs x ${reps}` });
+        toast({ title: "Set Logged", description: `${weight} lbs x ${reps}` });
         // Optional: clear inputs or keep for next set? Usually keep weight, maybe clear reps/rpe
       },
       onError: (err) => {
@@ -155,7 +155,7 @@ function ExerciseRow({ row }: { row: any }) {
             <div className="space-y-4">
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <Label className="text-xs uppercase text-muted-foreground mb-1 block">Weight (Lbs)</Label>
+                  <Label className="text-xs uppercase text-muted-foreground mb-1 block">Weight (lbs)</Label>
                   <Input 
                     type="number" 
                     step="0.1"
@@ -205,7 +205,7 @@ function ExerciseRow({ row }: { row: any }) {
                 {logs?.map((log, idx) => (
                   <div key={log.id} className="flex justify-between items-center text-sm p-2 bg-card rounded border border-border/50">
                     <span className="text-muted-foreground">Set {idx + 1}</span>
-                    <span className="font-bold text-foreground">{log.weight} Lbs × {log.reps}</span>
+                    <span className="font-bold text-foreground">{log.weight} lbs × {log.reps}</span>
                     <span className="text-primary font-medium">{log.rpe ? `@${log.rpe}` : ""}</span>
                   </div>
                 ))}

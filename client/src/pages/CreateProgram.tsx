@@ -99,13 +99,13 @@ function SuggestionCard({ family }: { family: string }) {
         {data.suggestion1x3 && (
           <div className="text-center bg-background rounded p-2">
             <div className="text-xs text-muted-foreground uppercase">1 x 3 @ 6</div>
-            <div className="text-xl font-bold text-primary">{Math.round(data.suggestion1x3)}kg</div>
+            <div className="text-xl font-bold text-primary">{Math.round(data.suggestion1x3)}lbs</div>
           </div>
         )}
         {data.suggestion1x5 && (
           <div className="text-center bg-background rounded p-2">
             <div className="text-xs text-muted-foreground uppercase">1 x 5 @ 6</div>
-            <div className="text-xl font-bold text-primary">{Math.round(data.suggestion1x5)}kg</div>
+            <div className="text-xl font-bold text-primary">{Math.round(data.suggestion1x5)}lbs</div>
           </div>
         )}
       </div>

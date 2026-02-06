@@ -51,7 +51,7 @@ export default function Progress() {
             <TrendingUp className="w-5 h-5 text-primary" />
             <span className="font-bold uppercase text-xs tracking-wider">All-Time e1RM</span>
           </div>
-          <div className="text-4xl font-display font-bold">{currentMax} <span className="text-lg text-muted-foreground">kg</span></div>
+          <div className="text-4xl font-display font-bold">{currentMax} <span className="text-lg text-muted-foreground">lbs</span></div>
         </div>
         
         <div className="gym-card p-6 col-span-1 md:col-span-2 flex flex-col justify-center">
@@ -103,8 +103,10 @@ export default function Progress() {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-muted-foreground">
-              No data available for {family}
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <p className="text-muted-foreground max-w-md">
+                No anchor logs yet. Log a set in a workout row marked as an anchor to start tracking e1RM.
+              </p>
             </div>
           )
         )}
