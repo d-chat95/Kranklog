@@ -3,6 +3,7 @@ import { useWorkout, useCreateWorkoutRow } from "@/hooks/use-workouts";
 import { useCreateLog, useLogs } from "@/hooks/use-logs";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@shared/routes";
 import { useRoute, Link } from "wouter";
 import { ArrowLeft, Plus, CheckCircle2, History, Anchor } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
