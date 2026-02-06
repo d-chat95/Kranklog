@@ -84,7 +84,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/logs',
-      input: insertLogSchema,
+      input: insertLogSchema.extend({ date: z.string().optional() }),
       responses: {
         201: z.custom<typeof logs.$inferSelect>(),
         400: errorSchemas.validation,

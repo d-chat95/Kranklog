@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, Plus, CheckCircle2, History, Anchor } from "lucide-react";
+import { ArrowLeft, Plus, CheckCircle2, History, Anchor, CalendarDays } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/Loading";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { movementFamilyEnum, intensityTypeEnum } from "@shared/schema";
+import { format } from "date-fns";
 
 // --- Schema for adding exercise ---
 const rowSchema = z.object({
@@ -38,9 +39,12 @@ export default function WorkoutSession() {
   const [, params] = useRoute("/workouts/:id");
   const workoutId = parseInt(params?.id || "0");
   const { data: workout, isLoading } = useWorkout(workoutId);
+  const [sessionDate, setSessionDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   
   if (isLoading) return <Layout><LoadingSpinner /></Layout>;
   if (!workout) return <Layout><div className="p-8 text-center">Workout not found</div></Layout>;
+
+  const isToday = sessionDate === format(new Date(), "yyyy-MM-dd");
 
   return (
     <Layout
@@ -54,7 +58,23 @@ export default function WorkoutSession() {
               <h1 className="text-3xl md:text-5xl font-display font-bold text-foreground uppercase">{workout.name}</h1>
               <p className="text-muted-foreground">{workout.description}</p>
             </div>
-            <AddExerciseDialog workoutId={workoutId} />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                <Label className="text-xs uppercase text-muted-foreground sr-only">Session Date</Label>
+                <Input
+                  type="date"
+                  value={sessionDate}
+                  onChange={e => setSessionDate(e.target.value)}
+                  className="bg-card border-border w-[160px]"
+                  data-testid="input-session-date"
+                />
+              </div>
+              {!isToday && (
+                <span className="text-xs text-yellow-500 font-semibold uppercase tracking-wider">Backfill</span>
+              )}
+              <AddExerciseDialog workoutId={workoutId} />
+            </div>
           </div>
         </div>
       }
@@ -68,7 +88,7 @@ export default function WorkoutSession() {
         )}
 
         {workout.rows?.sort((a,b) => a.orderLabel.localeCompare(b.orderLabel)).map((row) => (
-          <ExerciseRow key={row.id} row={row} />
+          <ExerciseRow key={row.id} row={row} sessionDate={sessionDate} />
         ))}
       </div>
     </Layout>
@@ -76,7 +96,7 @@ export default function WorkoutSession() {
 }
 
 // --- Component: Exercise Row (The main logging unit) ---
-function ExerciseRow({ row }: { row: any }) {
+function ExerciseRow({ row, sessionDate }: { row: any; sessionDate: string }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -105,6 +125,7 @@ function ExerciseRow({ row }: { row: any }) {
       reps: parseInt(reps),
       rpe: rpe ? rpe : null,
       notes: "",
+      date: new Date(sessionDate + "T12:00:00").toISOString(),
     }, {
       onSuccess: () => {
         toast({ title: "Set Logged", description: `${weight} lbs x ${reps}` });

@@ -22,7 +22,7 @@ export interface IStorage {
   getWorkoutRow(id: number): Promise<WorkoutRow | undefined>;
   
   // Logs
-  createLog(log: InsertLog): Promise<Log>;
+  createLog(log: InsertLog, date?: Date): Promise<Log>;
   getLogs(userId: string, filters?: { workoutRowId?: number, movementFamily?: string, isAnchor?: boolean }): Promise<(Log & { row: WorkoutRow })[]>;
   
   // Stats helpers
@@ -80,8 +80,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Logs
-  async createLog(log: InsertLog): Promise<Log> {
-    const [newLog] = await db.insert(logs).values(log).returning();
+  async createLog(log: InsertLog, date?: Date): Promise<Log> {
+    const values = date ? { ...log, date } : log;
+    const [newLog] = await db.insert(logs).values(values).returning();
     return newLog;
   }
 

@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { type InsertLog } from "@shared/schema";
 
+type CreateLogInput = InsertLog & { date?: string };
+
 export function useCreateLog() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: InsertLog) => {
+    mutationFn: async (data: CreateLogInput) => {
       const res = await fetch(api.logs.create.path, {
         method: api.logs.create.method,
         headers: { "Content-Type": "application/json" },

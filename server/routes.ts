@@ -83,7 +83,9 @@ export async function registerRoutes(
       if (input.userId !== (req.user as any).claims.sub) {
         return res.status(403).json({ message: "Cannot log for another user" });
       }
-      const log = await storage.createLog(input);
+      const { date: dateStr, ...logData } = input;
+      const performedAt = dateStr ? new Date(dateStr) : new Date();
+      const log = await storage.createLog(logData, performedAt);
       res.status(201).json(log);
     } catch (err) {
       if (err instanceof z.ZodError) {
