@@ -9,6 +9,11 @@ import { TrendingUp, Dumbbell } from "lucide-react";
 
 type ViewMode = "e1rm" | "actual" | "both";
 
+const METRIC_COLORS = {
+  actual: "#3B82F6",
+  e1rm: "#22C55E",
+};
+
 function ChartTooltip({ active, payload, label, viewMode }: any) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0]?.payload;
@@ -18,12 +23,12 @@ function ChartTooltip({ active, payload, label, viewMode }: any) {
     <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-md">
       <p className="font-medium text-foreground mb-1">{label}</p>
       {(viewMode === "actual" || viewMode === "both") && (
-        <p className="text-muted-foreground">
+        <p style={{ color: METRIC_COLORS.actual }}>
           Actual: {d.weight} &times; {d.reps} @ RPE {d.rpe}
         </p>
       )}
       {(viewMode === "e1rm" || viewMode === "both") && (
-        <p className="text-primary">
+        <p style={{ color: METRIC_COLORS.e1rm }}>
           e1RM: {d.e1rm} lbs
         </p>
       )}
@@ -143,24 +148,24 @@ export default function Progress() {
                 {viewMode === "e1rm" && (
                   <YAxis
                     yAxisId="left"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke={METRIC_COLORS.e1rm}
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                     domain={['auto', 'auto']}
-                    label={{ value: "e1RM (lbs)", angle: -90, position: "insideLeft", style: { fill: "hsl(var(--muted-foreground))", fontSize: 11 } }}
+                    label={{ value: "e1RM (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.e1rm, fontSize: 11 } }}
                   />
                 )}
 
                 {viewMode === "actual" && (
                   <YAxis
                     yAxisId="left"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke={METRIC_COLORS.actual}
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                     domain={['auto', 'auto']}
-                    label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: "hsl(var(--muted-foreground))", fontSize: 11 } }}
+                    label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.actual, fontSize: 11 } }}
                   />
                 )}
 
@@ -168,22 +173,22 @@ export default function Progress() {
                   <>
                     <YAxis
                       yAxisId="left"
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke={METRIC_COLORS.actual}
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       domain={['auto', 'auto']}
-                      label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: "hsl(var(--muted-foreground))", fontSize: 11 } }}
+                      label={{ value: "Weight (lbs)", angle: -90, position: "insideLeft", style: { fill: METRIC_COLORS.actual, fontSize: 11 } }}
                     />
                     <YAxis
                       yAxisId="right"
                       orientation="right"
-                      stroke="hsl(var(--primary))"
+                      stroke={METRIC_COLORS.e1rm}
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       domain={['auto', 'auto']}
-                      label={{ value: "e1RM (lbs)", angle: 90, position: "insideRight", style: { fill: "hsl(var(--primary))", fontSize: 11 } }}
+                      label={{ value: "e1RM (lbs)", angle: 90, position: "insideRight", style: { fill: METRIC_COLORS.e1rm, fontSize: 11 } }}
                     />
                   </>
                 )}
@@ -196,9 +201,9 @@ export default function Progress() {
                     type="monotone" 
                     dataKey="e1rm"
                     name="e1RM"
-                    stroke="hsl(var(--primary))" 
+                    stroke={METRIC_COLORS.e1rm}
                     strokeWidth={3} 
-                    dot={{ r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
+                    dot={{ r: 4, fill: METRIC_COLORS.e1rm, strokeWidth: 0 }}
                     activeDot={{ r: 6, strokeWidth: 0 }}
                   />
                 )}
@@ -209,9 +214,9 @@ export default function Progress() {
                     type="monotone" 
                     dataKey="weight"
                     name="Weight"
-                    stroke="hsl(var(--chart-2, var(--primary)))"
+                    stroke={METRIC_COLORS.actual}
                     strokeWidth={3} 
-                    dot={{ r: 4, fill: 'hsl(var(--chart-2, var(--primary)))', strokeWidth: 0 }}
+                    dot={{ r: 4, fill: METRIC_COLORS.actual, strokeWidth: 0 }}
                     activeDot={{ r: 6, strokeWidth: 0 }}
                   />
                 )}
@@ -223,20 +228,20 @@ export default function Progress() {
                       type="monotone" 
                       dataKey="weight"
                       name="Weight"
-                      stroke="hsl(var(--chart-2, var(--muted-foreground)))"
-                      strokeWidth={2} 
-                      strokeDasharray="5 3"
-                      dot={{ r: 3, fill: 'hsl(var(--chart-2, var(--muted-foreground)))', strokeWidth: 0 }}
-                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      stroke={METRIC_COLORS.actual}
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: METRIC_COLORS.actual, strokeWidth: 0 }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
                     />
                     <Line 
                       yAxisId="right"
                       type="monotone" 
                       dataKey="e1rm"
                       name="e1RM"
-                      stroke="hsl(var(--primary))" 
+                      stroke={METRIC_COLORS.e1rm}
                       strokeWidth={3} 
-                      dot={{ r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
+                      strokeDasharray="6 3"
+                      dot={{ r: 4, fill: METRIC_COLORS.e1rm, strokeWidth: 0 }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
                     />
                   </>
