@@ -1,0 +1,99 @@
+DIAGNOSTIC: Progress report not reflecting newly logged workouts — trace end-to-end
+
+Context:
+- New workouts and logs are being created successfully.
+- Some logs appear in the database.
+- Progress charts do not consistently reflect new data.
+- Multiple dates exist (log date, workout creation date, UI completion date).
+- There have been recent changes to chart grouping, anchor filtering, and invalidation.
+
+Goal:
+Identify EXACTLY why new logs are not appearing in Progress and which assumption is failing.
+
+DO NOT fix anything yet. This is diagnosis only.
+
+────────────────────────
+A) Backend verification
+────────────────────────
+
+1) Log the raw database query used by GET /api/stats/e1rm:
+   - Print:
+     - movementFamily received
+     - isAnchor received
+     - number of logs returned
+     - first 3 log rows: { id, date, weight, reps, rpe, workout_row_id }
+
+2) Confirm:
+   - Which date field is used downstream (logs.date vs others)
+   - Whether logs are being filtered out due to:
+     - is_anchor
+     - movement_family mismatch
+     - user_id mismatch
+
+3) Explicitly answer:
+   - Are logs from newly created workouts being returned by /api/stats/e1rm? (YES / NO)
+
+────────────────────────
+B) Frontend verification
+────────────────────────
+
+1) In client/src/pages/Progress.tsx, temporarily log:
+   - Raw response from /api/stats/e1rm
+   - chartData BEFORE any grouping / sorting
+   - chartData AFTER grouping / sorting
+
+2) Print:
+   - length of each array
+   - date values before and after transformation
+
+3) Explicitly answer:
+   - Are logs being lost in the frontend transformation step? (YES / NO)
+
+────────────────────────
+C) Cache / invalidation verification
+────────────────────────
+
+1) Confirm which React Query keys are used for:
+   - useStatsE1rm
+   - useCreateLog
+2) Log when invalidation occurs after POST /api/logs
+3) Explicitly answer:
+   - Is Progress refetching after a new log is saved? (YES / NO)
+
+────────────────────────
+D) Date semantics check
+────────────────────────
+
+Explicitly list all dates involved:
+- logs.date
+- workouts.created_at
+- workout_rows.created_at
+- any derived or UI-only dates
+
+Answer:
+- Which date determines Progress placement?
+- What happens if multiple logs exist on the same calendar day?
+- Are logs collapsing into one point due to grouping logic?
+
+────────────────────────
+MANDATORY FINAL OUTPUT
+────────────────────────
+
+At the end, respond with:
+
+1) Root cause (one sentence)
+2) Where data is lost:
+   - Backend filter
+   - Frontend transform
+   - Cache invalidation
+   - Date grouping
+3) One concrete example using real values:
+   “Log X dated Y was (included/excluded) because Z”
+4) Whether this is a BUG or an EXPECTED BEHAVIOR
+5) What the *next fix* should be (one sentence only, no code)
+
+IMPORTANT:
+- Do NOT apply fixes
+- Do NOT refactor
+- Do NOT add features
+- Remove all temporary logs after reporting
