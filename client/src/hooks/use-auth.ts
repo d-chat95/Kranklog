@@ -44,8 +44,13 @@ export function useAuth() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      // Guard: if the response isn't JSON (e.g. HTML from SPA fallback), bail out
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        throw new Error("API returned non-JSON (serverless function may not be deployed)");
+      }
+
       if (res.status === 401) {
-        // Backend rejected the token — clear stale session
         await supabase.auth.signOut();
         throw new Error("Session expired");
       }
@@ -53,7 +58,7 @@ export function useAuth() {
       return res.json();
     },
     enabled: !!session?.access_token,
-    retry: 1,
+    retry: false,
     staleTime: 1000 * 60 * 5,
   });
 

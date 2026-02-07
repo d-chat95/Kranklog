@@ -48,11 +48,8 @@ async function buildAll() {
     entryPoints: ["server/app.ts"],
     platform: "node",
     bundle: true,
-    format: "esm",
-    outfile: "api/index.mjs",
-    banner: {
-      js: "import{createRequire as __cr}from'module';const require=__cr(import.meta.url);",
-    },
+    format: "cjs",
+    outfile: "dist/api.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
