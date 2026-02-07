@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@shared/models/auth";
 import type { Session } from "@supabase/supabase-js";
-import { getAccessToken } from "@/lib/supabase";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -11,13 +10,11 @@ export function useAuth() {
   const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setSessionLoading(false);
     });
 
-    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -30,15 +27,16 @@ export function useAuth() {
   }, [queryClient]);
 
   // Fetch user profile from our API (local users table)
-  // Uses fetch directly (not apiRequest) so we can inspect status codes
+  // Uses the token directly from the session state (not the module-level cache)
+  // to avoid race conditions when the session just changed
   const {
     data: user,
     isLoading: profileLoading,
     isError: profileError,
   } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
+    queryKey: ["/api/auth/user", session?.access_token],
     queryFn: async () => {
-      const token = getAccessToken();
+      const token = session?.access_token;
       if (!token) throw new Error("No token");
 
       const res = await fetch("/api/auth/user", {
@@ -46,7 +44,6 @@ export function useAuth() {
       });
 
       if (res.status === 401) {
-        // Token rejected by backend - clear stale session
         await supabase.auth.signOut();
         throw new Error("Session expired");
       }
@@ -55,12 +52,11 @@ export function useAuth() {
       }
       return res.json();
     },
-    enabled: !!session,
+    enabled: !!session?.access_token,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   });
 
-  // If profile fetch fails, don't stay stuck in loading forever
   const isLoading = sessionLoading || (!!session && profileLoading && !profileError);
 
   async function logout() {
@@ -72,7 +68,6 @@ export function useAuth() {
     user: user ?? null,
     session,
     isLoading,
-    // Only authenticated when backend confirms the user exists
     isAuthenticated: !!session && !!user,
     logout,
   };
