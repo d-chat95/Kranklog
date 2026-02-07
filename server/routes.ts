@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -7,10 +6,7 @@ import { isAuthenticated, getUserId, getAuthUser } from "./auth";
 import { programs, workouts, workoutRows } from "@shared/schema";
 import { db } from "./db";
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
+export function registerRoutes(app: Express): void {
   // Auth user profile endpoint
   app.get("/api/auth/user", isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
@@ -385,7 +381,6 @@ export async function registerRoutes(
     });
   });
 
-  return httpServer;
 }
 
 async function ensureSeededForUser(userId: string) {
