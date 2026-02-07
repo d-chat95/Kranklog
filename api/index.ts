@@ -1,3 +1,3 @@
-// Vercel serverless entry point - this file gets bundled by esbuild during build
+// Vercel serverless entry point
 import app from "../server/app";
 export default app;
