@@ -43,7 +43,7 @@ Preferred communication style: Simple, everyday language.
 - **Key tables**:
   - `users` - User profiles (Replit Auth managed)
   - `sessions` - Session storage (Replit Auth managed)
-  - `programs` - Training program definitions
+  - `programs` - Training program definitions (has `owner_id` nullable text linking to the owning user)
   - `workouts` - Individual workout sessions within programs (has `workout_date` timestamp for the session date, `completed_at` nullable timestamp, `completed_by_user_id` nullable text)
   - `workout_rows` - Prescribed exercises with sets/reps/intensity targets
   - `logs` - Actual logged performance (weight, reps, RPE, timestamps)
@@ -54,6 +54,7 @@ Preferred communication style: Simple, everyday language.
 3. **Replit Auth integration**: Authentication is handled entirely through Replit's OIDC flow. The `setupAuth` function configures Passport.js with the OIDC strategy. All API routes use `isAuthenticated` middleware
 4. **Mobile-first navigation**: Desktop uses a fixed left sidebar (64px wide), mobile uses a bottom tab bar with a floating action button for creating new programs
 5. **Full CRUD with cascade deletes**: All entities (Programs, Workouts, Workout Rows, Logs) support Create, Read, Update (PATCH), and Delete operations. Deletes use explicit transactional cascades (logs → workout_rows → workouts → programs) since FK constraints don't have ON DELETE CASCADE. Log mutations enforce user ownership (userId check).
+7. **Per-user program ownership**: Programs have an `owner_id` column. All program CRUD is scoped to the authenticated user. Workout and workout row mutations verify that the parent program is owned by the current user via `getProgramOwnerByWorkoutId` / `getProgramOwnerByWorkoutRowId` helpers. In development mode, orphaned programs (owner_id IS NULL) are backfilled to the current user, and `ensureSeededForUser(userId)` seeds default data per-user if they have zero programs.
 6. **React Query invalidation keys**: Use template-based keys `[path, id]` not resolved URLs. Programs: `["/api/programs"]` and `["/api/programs/:id", id]`. Workouts: `["/api/workouts/:id", id]`. Logs: `["/api/logs", JSON.stringify(params)]`. Stats: `["/api/stats/e1rm"]`, `["/api/stats/suggestions"]`.
 
 ## External Dependencies
