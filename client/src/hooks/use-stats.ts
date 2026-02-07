@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/routes";
+import { apiRequest } from "@/lib/queryClient";
 
 export function useE1RMStats(movementFamily: string, isAnchor?: boolean) {
   return useQuery({
@@ -8,9 +9,8 @@ export function useE1RMStats(movementFamily: string, isAnchor?: boolean) {
       const url = new URL(api.stats.e1rm.path, window.location.origin);
       url.searchParams.append("movementFamily", movementFamily);
       if (isAnchor !== undefined) url.searchParams.append("isAnchor", String(isAnchor));
-      
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch stats");
+
+      const res = await apiRequest("GET", url.toString());
       return api.stats.e1rm.responses[200].parse(await res.json());
     },
     enabled: !!movementFamily,
@@ -23,9 +23,8 @@ export function useSuggestions(movementFamily: string) {
     queryFn: async () => {
       const url = new URL(api.stats.suggestions.path, window.location.origin);
       url.searchParams.append("movementFamily", movementFamily);
-      
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch suggestions");
+
+      const res = await apiRequest("GET", url.toString());
       return api.stats.suggestions.responses[200].parse(await res.json());
     },
     enabled: !!movementFamily,
@@ -45,8 +44,7 @@ export function useLoadRecommendation(movementFamily: string, targetReps: string
       url.searchParams.append("targetReps", targetReps);
       url.searchParams.append("targetRpe", targetRpe);
 
-      const res = await fetch(url.toString(), { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch recommendation");
+      const res = await apiRequest("GET", url.toString());
       return api.stats.suggestions.responses[200].parse(await res.json());
     },
     enabled,
