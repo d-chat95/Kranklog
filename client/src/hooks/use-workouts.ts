@@ -1,15 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type InsertWorkout, type InsertWorkoutRow } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
 export function useWorkout(id: number) {
   return useQuery({
     queryKey: [api.workouts.get.path, id],
     queryFn: async () => {
       const url = buildUrl(api.workouts.get.path, { id });
-      const res = await fetch(url, { credentials: "include" });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch workout");
+      const res = await apiRequest("GET", url);
       return api.workouts.get.responses[200].parse(await res.json());
     },
     enabled: !!id,
@@ -20,13 +19,7 @@ export function useCreateWorkout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertWorkout) => {
-      const res = await fetch(api.workouts.create.path, {
-        method: api.workouts.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to create workout");
+      const res = await apiRequest("POST", api.workouts.create.path, data);
       return api.workouts.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
@@ -41,13 +34,7 @@ export function useUpdateWorkout() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertWorkout> }) => {
       const url = buildUrl(api.workouts.update.path, { id });
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to update workout");
+      const res = await apiRequest("PATCH", url, data);
       return await res.json();
     },
     onSuccess: (result, variables) => {
@@ -65,15 +52,7 @@ export function useCompleteWorkout() {
   return useMutation({
     mutationFn: async ({ id }: { id: number }) => {
       const url = buildUrl(api.workouts.complete.path, { id });
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (res.status === 409) {
-        const data = await res.json();
-        throw new Error(data.message || "Workout already completed");
-      }
-      if (!res.ok) throw new Error("Failed to complete workout");
+      const res = await apiRequest("POST", url);
       return await res.json();
     },
     onSuccess: (result) => {
@@ -93,11 +72,7 @@ export function useDeleteWorkout() {
   return useMutation({
     mutationFn: async ({ id, programId }: { id: number; programId: number }) => {
       const url = buildUrl(api.workouts.delete.path, { id });
-      const res = await fetch(url, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete workout");
+      const res = await apiRequest("DELETE", url);
       return await res.json();
     },
     onSuccess: (_, variables) => {
@@ -111,13 +86,7 @@ export function useCreateWorkoutRow() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertWorkoutRow) => {
-      const res = await fetch(api.workoutRows.create.path, {
-        method: api.workoutRows.create.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to add exercise");
+      const res = await apiRequest("POST", api.workoutRows.create.path, data);
       return api.workoutRows.create.responses[201].parse(await res.json());
     },
     onSuccess: (_, variables) => {
@@ -131,13 +100,7 @@ export function useUpdateWorkoutRow() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertWorkoutRow> }) => {
       const url = buildUrl(api.workoutRows.update.path, { id });
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to update exercise");
+      const res = await apiRequest("PATCH", url, data);
       return await res.json();
     },
     onSuccess: (result) => {
@@ -151,11 +114,7 @@ export function useDeleteWorkoutRow() {
   return useMutation({
     mutationFn: async ({ id, workoutId }: { id: number; workoutId: number }) => {
       const url = buildUrl(api.workoutRows.delete.path, { id });
-      const res = await fetch(url, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete exercise");
+      const res = await apiRequest("DELETE", url);
       return await res.json();
     },
     onSuccess: (_, variables) => {

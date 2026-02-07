@@ -1,23 +1,19 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth, isAuthenticated } from "./replit_integrations/auth";
-import { registerAuthRoutes } from "./replit_integrations/auth";
+import { isAuthenticated, getUserId, getAuthUser } from "./auth";
 import { programs, workouts, workoutRows } from "@shared/schema";
 import { db } from "./db";
 
-function getUserId(req: any): string {
-  return req.user.claims.sub;
-}
-
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  await setupAuth(app);
-  registerAuthRoutes(app);
+export function registerRoutes(app: Express): void {
+  // Auth user profile endpoint
+  app.get("/api/auth/user", isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    const user = await getAuthUser(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  });
 
   // ─── Programs ───────────────────────────────────────
   app.get(api.programs.list.path, isAuthenticated, async (req, res) => {
@@ -385,7 +381,6 @@ export async function registerRoutes(
     });
   });
 
-  return httpServer;
 }
 
 async function ensureSeededForUser(userId: string) {

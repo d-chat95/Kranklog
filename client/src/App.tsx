@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageLoader } from "@/components/ui/Loading";
 
 // Pages
-import Landing from "@/pages/Landing";
+import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import Programs from "@/pages/Programs";
 import CreateProgram from "@/pages/CreateProgram";
@@ -21,7 +21,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) return <PageLoader />;
-  if (!isAuthenticated) return <Redirect to="/" />;
+  if (!isAuthenticated) return <Redirect to="/auth" />;
 
   return <Component />;
 }
@@ -33,7 +33,8 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/" component={isAuthenticated ? Dashboard : Landing} />
+      <Route path="/" component={isAuthenticated ? Dashboard : AuthPage} />
+      <Route path="/auth" component={AuthPage} />
       
       {/* Protected Routes */}
       <Route path="/programs">

@@ -2,7 +2,6 @@ import { pgTable, text, serial, integer, boolean, timestamp, numeric, pgEnum, in
 import { relations, desc } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-// Import auth models - CRITICAL for Replit Auth
 export * from "./models/auth";
 import { users } from "./models/auth";
 
