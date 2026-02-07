@@ -45,7 +45,7 @@ async function buildAll() {
 
   console.log("building API serverless function (Vercel)...");
   await esbuild({
-    entryPoints: ["api/index.ts"],
+    entryPoints: ["server/vercel-entry.ts"],
     platform: "node",
     bundle: true,
     format: "cjs",

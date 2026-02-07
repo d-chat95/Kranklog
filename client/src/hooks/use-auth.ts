@@ -31,18 +31,23 @@ export function useAuth() {
   }, [queryClient]);
 
   // Fetch user profile from our API (local users table)
-  const { data: user, isLoading: profileLoading } = useQuery<User | null>({
+  const {
+    data: user,
+    isLoading: profileLoading,
+    isError: profileError,
+  } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/auth/user");
       return res.json();
     },
     enabled: !!session,
-    retry: false,
+    retry: 1,
     staleTime: 1000 * 60 * 5,
   });
 
-  const isLoading = sessionLoading || (!!session && profileLoading);
+  // If profile fetch fails (API down), don't stay stuck in loading forever
+  const isLoading = sessionLoading || (!!session && profileLoading && !profileError);
 
   async function logout() {
     await supabase.auth.signOut();
