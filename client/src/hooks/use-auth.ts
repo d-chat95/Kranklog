@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@shared/models/auth";
 import type { Session } from "@supabase/supabase-js";
-import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/supabase";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -22,7 +22,6 @@ export function useAuth() {
       (_event, session) => {
         setSession(session);
         setSessionLoading(false);
-        // Invalidate user profile query when auth state changes
         queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       }
     );
@@ -31,6 +30,7 @@ export function useAuth() {
   }, [queryClient]);
 
   // Fetch user profile from our API (local users table)
+  // Uses fetch directly (not apiRequest) so we can inspect status codes
   const {
     data: user,
     isLoading: profileLoading,
@@ -38,7 +38,21 @@ export function useAuth() {
   } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/auth/user");
+      const token = getAccessToken();
+      if (!token) throw new Error("No token");
+
+      const res = await fetch("/api/auth/user", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        // Token rejected by backend - clear stale session
+        await supabase.auth.signOut();
+        throw new Error("Session expired");
+      }
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
       return res.json();
     },
     enabled: !!session,
@@ -46,7 +60,7 @@ export function useAuth() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // If profile fetch fails (API down), don't stay stuck in loading forever
+  // If profile fetch fails, don't stay stuck in loading forever
   const isLoading = sessionLoading || (!!session && profileLoading && !profileError);
 
   async function logout() {
@@ -55,10 +69,11 @@ export function useAuth() {
   }
 
   return {
-    user: session ? user : null,
+    user: user ?? null,
     session,
     isLoading,
-    isAuthenticated: !!session,
+    // Only authenticated when backend confirms the user exists
+    isAuthenticated: !!session && !!user,
     logout,
   };
 }
