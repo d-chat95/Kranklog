@@ -27,6 +27,7 @@ export const intensityTypeEnum = pgEnum("intensity_type", [
 // Programs
 export const programs = pgTable("programs", {
   id: serial("id").primaryKey(),
+  ownerId: text("owner_id"),
   name: text("name").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -114,7 +115,7 @@ export const logsRelations = relations(logs, ({ one }) => ({
 }));
 
 // Schemas
-export const insertProgramSchema = createInsertSchema(programs).omit({ id: true, createdAt: true });
+export const insertProgramSchema = createInsertSchema(programs).omit({ id: true, ownerId: true, createdAt: true });
 export const insertWorkoutSchema = createInsertSchema(workouts).omit({ id: true });
 export const insertWorkoutRowSchema = createInsertSchema(workoutRows).omit({ id: true });
 export const insertLogSchema = createInsertSchema(logs).omit({ id: true, date: true });

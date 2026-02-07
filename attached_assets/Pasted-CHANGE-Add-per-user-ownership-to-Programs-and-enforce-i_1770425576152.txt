@@ -1,0 +1,87 @@
+CHANGE: Add per-user ownership to Programs (and enforce it everywhere)
+
+Current state:
+Programs/Workouts/WorkoutRows are shared across all users (no owner field). Only logs are per-user.
+
+Goal:
+1) Add ownership to programs
+2) Enforce ownership on all program/workout/row CRUD
+3) Keep logs ownership enforcement as-is
+4) Keep seed behavior working in dev but scoped to user
+
+Constraints:
+- Use Drizzle schema + npm run db:push
+- No coach/admin features
+- Do NOT change logs ownership rules
+
+────────────────────────────────────────────
+A) Schema change (Drizzle)
+────────────────────────────────────────────
+1) Add programs.ownerId (text)
+   - IMPORTANT: Implement as nullable FIRST to avoid db:push failing on existing rows.
+   - We'll enforce it logically in server code.
+2) Update Drizzle schema/types and relations accordingly.
+
+After this change, run db:push (already in repo) to apply schema.
+
+────────────────────────────────────────────
+B) Ownership enforcement rules
+────────────────────────────────────────────
+Programs:
+- List/get/update/delete must be scoped by programs.owner_id = req.user.claims.sub
+- Create must set owner_id server-side (never accept owner_id from client)
+
+Workouts + WorkoutRows:
+- For create/update/delete, verify the parent Program is owned by current user BEFORE allowing the mutation.
+  Examples:
+  - Creating a workout: confirm programId belongs to user (SELECT program where id=programId AND owner_id=userId)
+  - Updating/deleting a workout: confirm workout belongs to a program owned by user (join workouts -> programs)
+  - Creating workout_row: confirm workout belongs to a program owned by user (join workout_rows -> workouts -> programs)
+  - Updating/deleting workout_row: same verification
+
+Reads:
+- /api/programs should show only the user’s programs
+- /api/programs/:id should return 404 if not owned
+- /api/workouts/:id should return 404 if the workout’s parent program is not owned
+
+Logs:
+- Keep existing logs ownership enforcement as-is.
+
+────────────────────────────────────────────
+C) Dev-safe backfill strategy (required for existing shared rows)
+────────────────────────────────────────────
+Because programs.owner_id may be NULL after db:push for existing rows, implement a dev-only lazy backfill:
+
+- When an authenticated user requests GET /api/programs (or GET /api/programs/:id):
+  - If any programs exist with owner_id IS NULL, assign them to the CURRENT USER (req.user.claims.sub) BUT ONLY when NODE_ENV=development.
+  - This makes the app usable immediately without manual SQL.
+  - After backfill, all ownership checks apply normally.
+
+(Do NOT do this in production mode.)
+
+────────────────────────────────────────────
+D) Seed behavior
+────────────────────────────────────────────
+Keep seedDatabase working but scoped:
+- Change seeding so it runs per-user (owned by that user), not globally.
+- Do NOT seed at server boot with no user context.
+- Implement ensureSeededForUser(userId):
+  - In development only:
+    - If the user has zero programs, seed the default program/workouts/rows for that user (with owner_id=userId).
+- Call ensureSeededForUser(userId) inside GET /api/programs list handler AFTER auth.
+
+────────────────────────────────────────────
+E) Acceptance tests (must pass)
+────────────────────────────────────────────
+- Two different users do NOT see each other’s programs/workouts/rows
+- Users can only edit/delete their own content
+- Existing logging + progress still works
+
+────────────────────────────────────────────
+CHANGE REPORTING (MANDATORY)
+────────────────────────────────────────────
+At end of response include:
+A) Files changed
+B) Schema changes (tables/columns)
+C) Exact ownership checks added (where in code, which handlers/storage functions)
+D) Backfill/seed behavior changes (dev-only)

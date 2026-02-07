@@ -8,6 +8,10 @@ import { registerAuthRoutes } from "./replit_integrations/auth";
 import { programs, workouts, workoutRows } from "@shared/schema";
 import { db } from "./db";
 
+function getUserId(req: any): string {
+  return req.user.claims.sub;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -17,20 +21,30 @@ export async function registerRoutes(
 
   // ─── Programs ───────────────────────────────────────
   app.get(api.programs.list.path, isAuthenticated, async (req, res) => {
-    const programs = await storage.getPrograms();
+    const userId = getUserId(req);
+
+    if (process.env.NODE_ENV === "development") {
+      await storage.backfillOrphanedPrograms(userId);
+    }
+
+    await ensureSeededForUser(userId);
+
+    const programs = await storage.getPrograms(userId);
     res.json(programs);
   });
 
   app.get(api.programs.get.path, isAuthenticated, async (req, res) => {
-    const program = await storage.getProgram(Number(req.params.id));
+    const userId = getUserId(req);
+    const program = await storage.getProgram(Number(req.params.id), userId);
     if (!program) return res.status(404).json({ message: "Program not found" });
     res.json(program);
   });
 
   app.post(api.programs.create.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const input = api.programs.create.input.parse(req.body);
-      const program = await storage.createProgram(input);
+      const program = await storage.createProgram(input, userId);
       res.status(201).json(program);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -42,8 +56,9 @@ export async function registerRoutes(
 
   app.patch(api.programs.update.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const input = api.programs.update.input.parse(req.body);
-      const updated = await storage.updateProgram(Number(req.params.id), input);
+      const updated = await storage.updateProgram(Number(req.params.id), input, userId);
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (err) {
@@ -55,21 +70,32 @@ export async function registerRoutes(
   });
 
   app.delete(api.programs.delete.path, isAuthenticated, async (req, res) => {
-    const deleted = await storage.deleteProgram(Number(req.params.id));
+    const userId = getUserId(req);
+    const deleted = await storage.deleteProgram(Number(req.params.id), userId);
     if (!deleted) return res.status(404).json({ message: "Program not found" });
     res.json({ ok: true });
   });
 
   // ─── Workouts ───────────────────────────────────────
   app.get(api.workouts.get.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
     const workout = await storage.getWorkout(Number(req.params.id));
     if (!workout) return res.status(404).json({ message: "Workout not found" });
+
+    const owner = await storage.getProgramOwnerByWorkoutId(workout.id);
+    if (owner !== userId) return res.status(404).json({ message: "Workout not found" });
+
     res.json(workout);
   });
 
   app.post(api.workouts.create.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const input = api.workouts.create.input.parse(req.body);
+
+      const program = await storage.getProgram(input.programId, userId);
+      if (!program) return res.status(403).json({ message: "Not your program" });
+
       const { workoutDate, ...rest } = input;
       let parsedDate = new Date();
       if (workoutDate) {
@@ -90,6 +116,12 @@ export async function registerRoutes(
 
   app.patch(api.workouts.update.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
+      const workoutId = Number(req.params.id);
+
+      const owner = await storage.getProgramOwnerByWorkoutId(workoutId);
+      if (owner !== userId) return res.status(404).json({ message: "Workout not found" });
+
       const input = api.workouts.update.input.parse(req.body);
       const { workoutDate, ...rest } = input;
       const updateData: any = { ...rest };
@@ -100,7 +132,7 @@ export async function registerRoutes(
         }
         updateData.workoutDate = parsedDate;
       }
-      const updated = await storage.updateWorkout(Number(req.params.id), updateData);
+      const updated = await storage.updateWorkout(workoutId, updateData);
       if (!updated) return res.status(404).json({ message: "Workout not found" });
       res.json(updated);
     } catch (err) {
@@ -112,19 +144,29 @@ export async function registerRoutes(
   });
 
   app.delete(api.workouts.delete.path, isAuthenticated, async (req, res) => {
-    const deleted = await storage.deleteWorkout(Number(req.params.id));
+    const userId = getUserId(req);
+    const workoutId = Number(req.params.id);
+
+    const owner = await storage.getProgramOwnerByWorkoutId(workoutId);
+    if (owner !== userId) return res.status(404).json({ message: "Workout not found" });
+
+    const deleted = await storage.deleteWorkout(workoutId);
     if (!deleted) return res.status(404).json({ message: "Workout not found" });
     res.json({ ok: true });
   });
 
   app.post(api.workouts.complete.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
     const workoutId = Number(req.params.id);
+
+    const owner = await storage.getProgramOwnerByWorkoutId(workoutId);
+    if (owner !== userId) return res.status(404).json({ message: "Workout not found" });
+
     const workout = await storage.getWorkout(workoutId);
     if (!workout) return res.status(404).json({ message: "Workout not found" });
     if (workout.completedAt) {
       return res.status(409).json({ message: "Workout already completed" });
     }
-    const userId = (req.user as any).claims.sub;
     const updated = await storage.completeWorkout(workoutId, userId);
     res.json(updated);
   });
@@ -132,7 +174,12 @@ export async function registerRoutes(
   // ─── Workout Rows ──────────────────────────────────
   app.post(api.workoutRows.create.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
       const input = api.workoutRows.create.input.parse(req.body);
+
+      const owner = await storage.getProgramOwnerByWorkoutId(input.workoutId);
+      if (owner !== userId) return res.status(403).json({ message: "Not your workout" });
+
       const row = await storage.createWorkoutRow(input);
       res.status(201).json(row);
     } catch (err) {
@@ -145,8 +192,14 @@ export async function registerRoutes(
 
   app.patch(api.workoutRows.update.path, isAuthenticated, async (req, res) => {
     try {
+      const userId = getUserId(req);
+      const rowId = Number(req.params.id);
+
+      const owner = await storage.getProgramOwnerByWorkoutRowId(rowId);
+      if (owner !== userId) return res.status(404).json({ message: "Workout row not found" });
+
       const input = api.workoutRows.update.input.parse(req.body);
-      const updated = await storage.updateWorkoutRow(Number(req.params.id), input);
+      const updated = await storage.updateWorkoutRow(rowId, input);
       if (!updated) return res.status(404).json({ message: "Workout row not found" });
       res.json(updated);
     } catch (err) {
@@ -158,7 +211,13 @@ export async function registerRoutes(
   });
 
   app.delete(api.workoutRows.delete.path, isAuthenticated, async (req, res) => {
-    const deleted = await storage.deleteWorkoutRow(Number(req.params.id));
+    const userId = getUserId(req);
+    const rowId = Number(req.params.id);
+
+    const owner = await storage.getProgramOwnerByWorkoutRowId(rowId);
+    if (owner !== userId) return res.status(404).json({ message: "Workout row not found" });
+
+    const deleted = await storage.deleteWorkoutRow(rowId);
     if (!deleted) return res.status(404).json({ message: "Workout row not found" });
     res.json({ ok: true });
   });
@@ -167,7 +226,7 @@ export async function registerRoutes(
   app.post(api.logs.create.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.logs.create.input.parse(req.body);
-      if (input.userId !== (req.user as any).claims.sub) {
+      if (input.userId !== getUserId(req)) {
         return res.status(403).json({ message: "Cannot log for another user" });
       }
       const { date: dateStr, ...logData } = input;
@@ -183,7 +242,7 @@ export async function registerRoutes(
   });
 
   app.get(api.logs.list.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const { workoutRowId, movementFamily, isAnchor } = req.query;
     
     const logs = await storage.getLogs(userId, {
@@ -196,7 +255,7 @@ export async function registerRoutes(
 
   app.patch(api.logs.update.path, isAuthenticated, async (req, res) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = getUserId(req);
       const logId = Number(req.params.id);
       const existing = await storage.getLog(logId);
       if (!existing) return res.status(404).json({ message: "Log not found" });
@@ -221,7 +280,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.logs.delete.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const logId = Number(req.params.id);
     const existing = await storage.getLog(logId);
     if (!existing) return res.status(404).json({ message: "Log not found" });
@@ -234,7 +293,7 @@ export async function registerRoutes(
 
   // ─── Stats & Suggestions ──────────────────────────
   app.get(api.stats.e1rm.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const { movementFamily, isAnchor } = req.query;
     if (!movementFamily) return res.status(400).json({ message: "Movement family required" });
 
@@ -267,7 +326,7 @@ export async function registerRoutes(
   });
 
   app.get(api.stats.suggestions.path, isAuthenticated, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+    const userId = getUserId(req);
     const { movementFamily, targetReps, targetRpe } = req.query;
     if (!movementFamily) return res.status(400).json({ message: "Movement family required" });
 
@@ -326,21 +385,21 @@ export async function registerRoutes(
     });
   });
 
-  await seedDatabase();
-
   return httpServer;
 }
 
-async function seedDatabase() {
-  const existingPrograms = await storage.getPrograms();
-  if (existingPrograms.length > 0) return;
+async function ensureSeededForUser(userId: string) {
+  if (process.env.NODE_ENV !== "development") return;
 
-  console.log("Seeding database...");
+  const existing = await storage.getPrograms(userId);
+  if (existing.length > 0) return;
+
+  console.log(`Seeding database for user ${userId}...`);
   
   const program = await storage.createProgram({
     name: "Krank 6-Week Strength",
     description: "Focus on Squat, Bench, Deadlift anchors."
-  });
+  }, userId);
 
   const workout1 = await storage.createWorkout({
     programId: program.id,
@@ -406,5 +465,5 @@ async function seedDatabase() {
     movementFamily: "Bench"
   });
 
-  console.log("Database seeded!");
+  console.log(`Database seeded for user ${userId}!`);
 }

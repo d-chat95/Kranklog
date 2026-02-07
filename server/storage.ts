@@ -5,14 +5,14 @@ import {
   type ProgramWithWorkouts, type WorkoutWithRows, type WorkoutRowWithLogs
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, inArray, isNull, sql } from "drizzle-orm";
 
 export interface IStorage {
-  getPrograms(): Promise<Program[]>;
-  getProgram(id: number): Promise<ProgramWithWorkouts | undefined>;
-  createProgram(program: InsertProgram): Promise<Program>;
-  updateProgram(id: number, data: Partial<InsertProgram>): Promise<Program | undefined>;
-  deleteProgram(id: number): Promise<boolean>;
+  getPrograms(userId: string): Promise<Program[]>;
+  getProgram(id: number, userId: string): Promise<ProgramWithWorkouts | undefined>;
+  createProgram(program: InsertProgram, userId: string): Promise<Program>;
+  updateProgram(id: number, data: Partial<InsertProgram>, userId: string): Promise<Program | undefined>;
+  deleteProgram(id: number, userId: string): Promise<boolean>;
 
   getWorkout(id: number): Promise<WorkoutWithRows | undefined>;
   createWorkout(workout: InsertWorkout): Promise<Workout>;
@@ -33,36 +33,50 @@ export interface IStorage {
   getLastAnchorLog(userId: string, movementFamily: string, variant?: string): Promise<Log | undefined>;
 
   completeWorkout(id: number, userId: string): Promise<Workout | undefined>;
+
+  getProgramOwnerByWorkoutId(workoutId: number): Promise<string | null>;
+  getProgramOwnerByWorkoutRowId(rowId: number): Promise<string | null>;
+
+  backfillOrphanedPrograms(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getPrograms(): Promise<Program[]> {
-    return await db.select().from(programs).orderBy(desc(programs.createdAt));
+  async getPrograms(userId: string): Promise<Program[]> {
+    return await db.select().from(programs)
+      .where(eq(programs.ownerId, userId))
+      .orderBy(desc(programs.createdAt));
   }
 
-  async getProgram(id: number): Promise<ProgramWithWorkouts | undefined> {
-    const program = await db.select().from(programs).where(eq(programs.id, id));
-    if (program.length === 0) return undefined;
+  async getProgram(id: number, userId: string): Promise<ProgramWithWorkouts | undefined> {
+    const [program] = await db.select().from(programs)
+      .where(and(eq(programs.id, id), eq(programs.ownerId, userId)));
+    if (!program) return undefined;
 
     const programWorkouts = await db.select().from(workouts)
       .where(eq(workouts.programId, id))
       .orderBy(workouts.workoutDate);
 
-    return { ...program[0], workouts: programWorkouts };
+    return { ...program, workouts: programWorkouts };
   }
 
-  async createProgram(program: InsertProgram): Promise<Program> {
-    const [newProgram] = await db.insert(programs).values(program).returning();
+  async createProgram(program: InsertProgram, userId: string): Promise<Program> {
+    const [newProgram] = await db.insert(programs).values({ ...program, ownerId: userId }).returning();
     return newProgram;
   }
 
-  async updateProgram(id: number, data: Partial<InsertProgram>): Promise<Program | undefined> {
-    const [updated] = await db.update(programs).set(data).where(eq(programs.id, id)).returning();
+  async updateProgram(id: number, data: Partial<InsertProgram>, userId: string): Promise<Program | undefined> {
+    const [updated] = await db.update(programs).set(data)
+      .where(and(eq(programs.id, id), eq(programs.ownerId, userId)))
+      .returning();
     return updated;
   }
 
-  async deleteProgram(id: number): Promise<boolean> {
+  async deleteProgram(id: number, userId: string): Promise<boolean> {
     return await db.transaction(async (tx) => {
+      const [owned] = await tx.select({ id: programs.id }).from(programs)
+        .where(and(eq(programs.id, id), eq(programs.ownerId, userId)));
+      if (!owned) return false;
+
       const programWorkouts = await tx.select({ id: workouts.id }).from(workouts).where(eq(workouts.programId, id));
       if (programWorkouts.length > 0) {
         const workoutIds = programWorkouts.map(w => w.id);
@@ -208,6 +222,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(workouts.id, id))
       .returning();
     return updated;
+  }
+
+  async getProgramOwnerByWorkoutId(workoutId: number): Promise<string | null> {
+    const result = await db.select({ ownerId: programs.ownerId })
+      .from(workouts)
+      .innerJoin(programs, eq(workouts.programId, programs.id))
+      .where(eq(workouts.id, workoutId));
+    return result[0]?.ownerId ?? null;
+  }
+
+  async getProgramOwnerByWorkoutRowId(rowId: number): Promise<string | null> {
+    const result = await db.select({ ownerId: programs.ownerId })
+      .from(workoutRows)
+      .innerJoin(workouts, eq(workoutRows.workoutId, workouts.id))
+      .innerJoin(programs, eq(workouts.programId, programs.id))
+      .where(eq(workoutRows.id, rowId));
+    return result[0]?.ownerId ?? null;
+  }
+
+  async backfillOrphanedPrograms(userId: string): Promise<void> {
+    await db.update(programs)
+      .set({ ownerId: userId })
+      .where(isNull(programs.ownerId));
   }
 }
 
