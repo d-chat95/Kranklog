@@ -1,0 +1,50 @@
+TASK: Ownership E2E test plan + helper tooling (no new product features)
+
+Goal:
+Verify that Programs/Workouts/WorkoutRows are now isolated per-user (owner_id) and that two different users cannot see or mutate each other’s data.
+
+Part 1 — Create 2 test users (no code changes required)
+Provide exact step-by-step instructions to create two distinct authenticated users using the existing Replit OIDC auth:
+- Use Browser A (normal) = User A
+- Use Browser B (incognito or different browser) = User B
+- Use two different identities (Google accounts or Google vs Apple) so the OIDC subject differs
+Explain how to confirm the user identity in-app (e.g., /api/auth/user output) and in Supabase (users table).
+
+Part 2 — Automated backend verification (add a dev-only test script)
+Add a dev-only script that runs against the live server endpoints and asserts ownership boundaries.
+Requirements:
+- Add script at: scripts/ownership-e2e.ts
+- Add npm script: "test:ownership": "tsx scripts/ownership-e2e.ts"
+- The script should:
+  1) Read two cookie strings or session tokens from environment variables:
+     USER_A_COOKIE
+     USER_B_COOKIE
+     (these will be copied from the browser devtools)
+  2) Call endpoints as User A to:
+     - create a program "A-ONLY"
+     - create a workout under it
+     - create a workout_row under it
+  3) Attempt the same reads/mutations as User B and assert:
+     - GET /api/programs does not include "A-ONLY"
+     - GET /api/programs/:id returns 404
+     - GET /api/workouts/:id returns 404
+     - PATCH/DELETE attempts return 404 or 403 (as implemented)
+  4) Repeat in reverse (create "B-ONLY" as User B, ensure User A can’t see it)
+
+Constraints:
+- Do NOT add new API routes
+- Do NOT change auth logic
+- The script should use fetch with the Cookie header
+- Print a clear PASS/FAIL report with the exact failing endpoint and response body if any
+
+Part 3 — Minimal manual checklist (for me)
+At the end, output a manual test checklist I can follow in 2 minutes (click-by-click), including:
+- how to copy cookies
+- what to expect in the UI
+- what to check in Supabase tables (programs.owner_id, workouts linkage, rows linkage)
+
+MANDATORY CHANGE REPORT:
+A) Files changed
+B) How to run the test (exact commands + env vars to set)
+C) Expected output example for PASS
+D) What to do if it FAILS (where to look first)
