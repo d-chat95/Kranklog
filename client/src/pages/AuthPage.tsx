@@ -50,7 +50,8 @@ export default function AuthPage() {
         });
         if (error) throw error;
       }
-      navigate("/", { replace: true });
+      // Navigation is handled automatically by the Router when
+      // isAuthenticated becomes true (via onAuthStateChange → useAuth)
     } catch (err: any) {
       setError(err.message || "Authentication failed");
     } finally {

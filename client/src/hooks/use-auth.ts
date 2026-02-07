@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@shared/models/auth";
@@ -10,31 +10,32 @@ export function useAuth() {
   const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
       setSessionLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setSessionLoading(false);
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setSessionLoading(false);
+      // Refetch user profile when session changes (login, logout, token refresh)
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    });
 
     return () => subscription.unsubscribe();
   }, [queryClient]);
 
-  // Fetch user profile from our API (local users table)
-  // Uses the token directly from the session state (not the module-level cache)
-  // to avoid race conditions when the session just changed
+  // Fetch user profile from our backend.
+  // Stable query key (no token) so token refreshes don't cause re-loading states.
+  // The token is read from session at fetch time.
   const {
     data: user,
     isLoading: profileLoading,
     isError: profileError,
   } = useQuery<User | null>({
-    queryKey: ["/api/auth/user", session?.access_token],
+    queryKey: ["/api/auth/user"],
     queryFn: async () => {
       const token = session?.access_token;
       if (!token) throw new Error("No token");
@@ -44,12 +45,11 @@ export function useAuth() {
       });
 
       if (res.status === 401) {
+        // Backend rejected the token — clear stale session
         await supabase.auth.signOut();
         throw new Error("Session expired");
       }
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
       return res.json();
     },
     enabled: !!session?.access_token,
@@ -57,12 +57,13 @@ export function useAuth() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const isLoading = sessionLoading || (!!session && profileLoading && !profileError);
+  const isLoading =
+    sessionLoading || (!!session && profileLoading && !profileError);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     await supabase.auth.signOut();
     queryClient.clear();
-  }
+  }, [queryClient]);
 
   return {
     user: user ?? null,
